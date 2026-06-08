@@ -505,8 +505,9 @@
 
 document.querySelectorAll(".option").forEach((el) => {
   el.onclick = () => {
-    state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
-    goToStep(2);
+    state.selectedDate = el.dataset.value;
+    state.selectedTime = null;
+    goToStep(3);
   };
 });
 
