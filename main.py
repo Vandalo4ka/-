@@ -7,7 +7,6 @@ from datetime import datetime
 import gspread
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from google.oauth2.service_account import Credentials
 from pydantic import BaseModel
@@ -40,12 +39,14 @@ class BookingRequest(BaseModel):
     time: str
 
 
+def readable_error(exc: Exception) -> str:
+    message = str(exc)
+    if message:
+        return message
+    return f"{type(exc).__name__}: {repr(exc)}"
+
+
 def get_credentials():
-    """
-    Railway supports both:
-    1. GOOGLE_CREDENTIALS_B64 — recommended
-    2. GOOGLE_CREDENTIALS_JSON — must be one-line JSON
-    """
     credentials_b64 = os.getenv("GOOGLE_CREDENTIALS_B64")
     credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
 
@@ -55,14 +56,14 @@ def get_credentials():
             credentials_info = json.loads(decoded)
             return Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
         except Exception as exc:
-            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_B64: {exc}")
+            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_B64: {readable_error(exc)}")
 
     if credentials_json:
         try:
             credentials_info = json.loads(credentials_json)
             return Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
         except Exception as exc:
-            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {exc}")
+            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {readable_error(exc)}")
 
     raise RuntimeError("No credentials found")
 
@@ -82,7 +83,7 @@ def worksheet_records(sheet_name: str):
         worksheet = spreadsheet.worksheet(sheet_name)
         return worksheet.get_all_records()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.get("/")
@@ -92,7 +93,24 @@ def index():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "spreadsheet_id_present": bool(os.getenv("SPREADSHEET_ID")),
+        "credentials_b64_present": bool(os.getenv("GOOGLE_CREDENTIALS_B64")),
+        "credentials_json_present": bool(os.getenv("GOOGLE_CREDENTIALS_JSON")),
+    }
+
+
+@app.get("/debug/sheets")
+def debug_sheets():
+    try:
+        spreadsheet = get_spreadsheet()
+        return {
+            "title": spreadsheet.title,
+            "worksheets": [ws.title for ws in spreadsheet.worksheets()],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.get("/api/services")
@@ -133,12 +151,13 @@ def get_slots(date: str = Query(...)):
     for row in records:
         row_date = str(row.get("date", "")).strip()
         status = str(row.get("status", "")).strip().lower()
+        row_time = str(row.get("time", "") or row.get("time_start", "")).strip()
 
         if row_date == date and status == "free":
             slots.append({
                 "slot_id": str(row.get("slot_id", "")).strip(),
                 "date": row_date,
-                "time": str(row.get("time", "")).strip(),
+                "time": row_time,
                 "status": status,
             })
 
@@ -171,8 +190,9 @@ def create_booking(request: BookingRequest):
         slot_row_number = None
 
         for index, row in enumerate(slots, start=2):
+            row_time = str(row.get("time", "") or row.get("time_start", "")).strip()
             same_date = str(row.get("date", "")).strip() == request.date
-            same_time = str(row.get("time", "")).strip() == request.time
+            same_time = row_time == request.time
             is_free = str(row.get("status", "")).strip().lower() == "free"
 
             if same_date and same_time and is_free:
@@ -198,10 +218,10 @@ def create_booking(request: BookingRequest):
             "new",
         ])
 
-        status_col = None
         headers = slots_ws.row_values(1)
+        status_col = None
         for i, header in enumerate(headers, start=1):
-            if header == "status":
+            if str(header).strip() == "status":
                 status_col = i
                 break
 
@@ -221,4 +241,4 @@ def create_booking(request: BookingRequest):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=readable_error(exc))
