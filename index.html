@@ -503,14 +503,12 @@
           </div>
         `;
 
-        document.querySelectorAll(".option").forEach((el) => {
-          el.onclick = () => {
-            state.selectedDate = el.dataset.value;
-            state.selectedTime = null;
-            renderDates();
-            setNextEnabled(true);
-          };
-        });
+document.querySelectorAll(".option").forEach((el) => {
+  el.onclick = () => {
+    state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
+    goToStep(2);
+  };
+});
 
         setNextEnabled(Boolean(state.selectedDate));
       } catch (error) {
