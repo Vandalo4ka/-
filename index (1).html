@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Запись к Светлане</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --beige: #F5EFE6;
+    --beige-dark: #EDE4D8;
+    --rose: #C4848A;
+    --rose-light: #F2DDE0;
+    --rose-dark: #A36068;
+    --brown: #5C4033;
+    --brown-light: #8B6E63;
+    --green: #7A8C6E;
+    --white: #FDFAF7;
+    --card: rgba(255,255,255,0.85);
+    --shadow: 0 8px 40px rgba(92,64,51,0.10);
+  }
+
+  body {
+    font-family: 'Jost', sans-serif;
+    background-color: var(--beige);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem 4rem;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Декоративные элементы фона */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -60px; right: -60px;
+    width: 340px; height: 340px;
+    background: radial-gradient(circle, rgba(196,132,138,0.18) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -80px; left: -80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(122,140,110,0.13) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 560px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Шапка */
+  .header {
+    text-align: center;
+    margin-bottom: 2rem;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .avatar {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--rose-light);
+    border: 2px solid rgba(196,132,138,0.3);
+    margin: 0 auto 1rem;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  .avatar svg { width: 42px; height: 42px; opacity: 0.7; }
+
+  .header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.2rem;
+    font-weight: 600;
+    color: var(--brown);
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
+
+  .header p {
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--brown-light);
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+
+  /* Степпер */
+  .stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .step-circle {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid var(--beige-dark);
+    background: var(--white);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--brown-light);
+    transition: all 0.3s ease;
+  }
+
+  .step.active .step-circle {
+    background: var(--rose);
+    border-color: var(--rose);
+    color: white;
+  }
+
+  .step.done .step-circle {
+    background: var(--green);
+    border-color: var(--green);
+    color: white;
+  }
+
+  .step-label {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--brown-light);
+    letter-spacing: 0.05em;
+  }
+
+  .step.active .step-label { color: var(--rose); }
+  .step.done .step-label { color: var(--green); }
+
+  .step-line {
+    width: 56px; height: 1px;
+    background: var(--beige-dark);
+    margin-bottom: 18px;
+    flex-shrink: 0;
+  }
+
+  /* Карточка */
+  .card {
+    background: var(--card);
+    backdrop-filter: blur(8px);
+    border-radius: 20px;
+    border: 1px solid rgba(196,132,138,0.15);
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    animation: fadeUp 0.5s 0.15s ease both;
+  }
+
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-title-icon {
+    width: 32px; height: 32px;
+    background: var(--rose-light);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-title-icon svg { width: 16px; height: 16px; stroke: var(--rose); }
+
+  .card-title h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--brown);
+  }
+
+  /* Услуги */
+  .services-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .service-item {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1.5px solid var(--beige-dark);
+    background: var(--white);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+  }
+
+  .service-item:hover { border-color: var(--rose); background: var(--rose-light); }
+
+  .service-item.selected {
+    border-color: var(--rose);
+    background: var(--rose-light);
+  }
+
+  .service-item.selected .service-check { opacity: 1; }
+
+  .service-name { font-size: 14px; font-weight: 400; color: var(--brown); }
+  .service-price { font-size: 13px; color: var(--brown-light); font-weight: 300; }
+
+  .service-check {
+    width: 18px; height: 18px;
+    background: var(--rose);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  .service-check svg { width: 10px; height: 10px; stroke: white; stroke-width: 2.5; }
+
+  /* Даты */
+  .dates-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .date-btn {
+    padding: 12px 8px;
+    border-radius: 12px;
+    border: 1.5px solid var(--beige-dark);
+    background: var(--white);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .date-btn:hover { border-color: var(--rose); background: var(--rose-light); }
+
+  .date-btn.selected {
+    border-color: var(--rose);
+    background: var(--rose-light);
+  }
+
+  .date-day { font-size: 11px; color: var(--brown-light); font-weight: 300; display: block; }
+  .date-num { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; font-weight: 600; color: var(--brown); display: block; margin: 2px 0; }
+  .date-month { font-size: 11px; color: var(--brown-light); font-weight: 300; display: block; }
+
+  /* Слоты времени */
+  .slots-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .slot-btn {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1.5px solid var(--beige-dark);
+    background: var(--white);
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--brown);
+    transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  .slot-btn:hover { border-color: var(--rose); background: var(--rose-light); }
+
+  .slot-btn.selected {
+    border-color: var(--rose);
+    background: var(--rose-light);
+    color: var(--rose-dark);
+  }
+
+  .slot-check { display: none; }
+  .slot-btn.selected .slot-check { display: inline; }
+
+  /* Поле имени */
+  .field { margin-top: 1.25rem; }
+
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--brown);
+    margin-bottom: 8px;
+    letter-spacing: 0.03em;
+  }
+
+  .field-label svg { width: 15px; height: 15px; stroke: var(--rose); }
+
+  .field input {
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 12px;
+    border: 1.5px solid var(--beige-dark);
+    background: var(--white);
+    font-family: 'Jost', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--brown);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field input::placeholder { color: var(--brown-light); opacity: 0.6; }
+  .field input:focus { border-color: var(--rose); }
+
+  /* Кнопка */
+  .btn-primary {
+    width: 100%;
+    margin-top: 1.5rem;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    background: var(--rose);
+    color: white;
+    font-family: 'Jost', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: var(--rose-dark); transform: translateY(-1px); }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary svg { width: 16px; height: 16px; stroke: white; transition: transform 0.2s; }
+  .btn-primary:hover:not(:disabled) svg { transform: translateX(3px); }
+
+  /* Экран подтверждения */
+  .success-icon {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: #EAF0E6;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.25rem;
+  }
+
+  .success-icon svg { width: 30px; height: 30px; stroke: var(--green); }
+
+  .success-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--brown);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+
+  .success-sub {
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--brown-light);
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .confirm-box {
+    background: var(--beige);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--brown);
+    font-weight: 300;
+  }
+
+  .confirm-row svg { width: 15px; height: 15px; stroke: var(--rose); flex-shrink: 0; }
+
+  .confirm-row strong { font-weight: 500; }
+
+  .notice {
+    margin-top: 1.25rem;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 300;
+    color: var(--brown-light);
+    letter-spacing: 0.03em;
+  }
+
+  /* Анимации */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeUp 0.35s ease both; }
+
+  @media (max-width: 480px) {
+    .card { padding: 1.5rem; }
+    .header h1 { font-size: 1.8rem; }
+    .step-line { width: 32px; }
+    .dates-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="avatar">
+      <svg viewBox="0 0 60 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="30" cy="20" rx="13" ry="14" stroke="#C4848A" stroke-width="1.5"/>
+        <path d="M8 65c0-12.15 9.85-22 22-22s22 9.85 22 22" stroke="#C4848A" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M22 10 Q30 4 38 10" stroke="#C4848A" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      </svg>
+    </div>
+    <h1>Запись к Светлане</h1>
+    <p>Мастер маникюра и педикюра</p>
+  </div>
+
+  <div class="stepper" id="stepper">
+    <div class="step active" data-s="1">
+      <div class="step-circle">1</div>
+      <span class="step-label">Услуга</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" data-s="2">
+      <div class="step-circle">2</div>
+      <span class="step-label">Дата</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" data-s="3">
+      <div class="step-circle">3</div>
+      <span class="step-label">Время</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" data-s="4">
+      <div class="step-circle">4</div>
+      <span class="step-label">Готово</span>
+    </div>
+  </div>
+
+  <div class="card">
+
+    <!-- Шаг 1: Услуга -->
+    <div class="screen active" id="s1">
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+            <path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <h2>Выберите услугу</h2>
+      </div>
+      <div class="services-list" id="services-list"></div>
+      <button class="btn-primary" id="btn1" disabled onclick="goTo(2)">
+        Далее
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Шаг 2: Дата -->
+    <div class="screen" id="s2">
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+            <rect x="3" y="4" width="18" height="18" rx="3"/>
+            <path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+        </div>
+        <h2>Выберите дату</h2>
+      </div>
+      <div class="dates-grid" id="dates-grid"></div>
+      <button class="btn-primary" id="btn2" disabled onclick="goTo(3)">
+        Далее
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Шаг 3: Время + Имя -->
+    <div class="screen" id="s3">
+      <div class="card-title">
+        <div class="card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7v5l3 3"/>
+          </svg>
+        </div>
+        <h2>Выберите время</h2>
+      </div>
+      <div class="slots-grid" id="slots-grid"></div>
+
+      <div class="field">
+        <div class="field-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4.418 3.582-8 8-8s8 3.582 8 8"/>
+          </svg>
+          Ваше имя
+        </div>
+        <input type="text" id="client-name" placeholder="Анна" oninput="checkStep3()">
+      </div>
+
+      <button class="btn-primary" id="btn3" disabled onclick="submit()">
+        Записаться
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Шаг 4: Успех -->
+    <div class="screen" id="s4">
+      <div class="success-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <p class="success-title">Вы записаны!</p>
+      <p class="success-sub">Ждём вас, всё готово</p>
+      <div class="confirm-box" id="confirm-box"></div>
+      <p class="notice">Мастер получил уведомление о вашей записи</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = '';  // пустая строка = тот же домен, на Railway подставится автоматически
+
+let sel = { service: null, date: null, slot: null };
+
+// ─── Загрузка услуг при старте ────────────────────────────────────────────────
+async function loadServices() {
+  const sl = document.getElementById('services-list');
+  sl.innerHTML = '<div style="color:var(--brown-light);font-size:13px;padding:8px">Загружаем...</div>';
+  try {
+    const res = await fetch(`${API}/api/services`);
+    const services = await res.json();
+    sl.innerHTML = '';
+    services.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'service-item';
+      el.innerHTML = `
+        <div><div class="service-name">${s.name}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="service-price">${Number(s.price).toLocaleString('ru')} ₽</span>
+          <div class="service-check"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>`;
+      el.onclick = () => {
+        document.querySelectorAll('.service-item').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        sel.service = s;
+        enableBtn('btn1');
+      };
+      sl.appendChild(el);
+    });
+  } catch {
+    sl.innerHTML = '<div style="color:var(--rose);font-size:13px;padding:8px">Не удалось загрузить услуги. Попробуйте позже.</div>';
+  }
+}
+
+// ─── Загрузка дат ─────────────────────────────────────────────────────────────
+async function loadDates() {
+  const dg = document.getElementById('dates-grid');
+  dg.innerHTML = '<div style="color:var(--brown-light);font-size:13px;padding:8px">Загружаем...</div>';
+  try {
+    const res = await fetch(`${API}/api/dates`);
+    const { dates } = await res.json();
+    dg.innerHTML = '';
+    if (!dates.length) {
+      dg.innerHTML = '<div style="color:var(--brown-light);font-size:13px;padding:8px">Свободных дат пока нет. Загляните позже!</div>';
+      return;
+    }
+    dates.forEach(d => {
+      const dt = new Date(d + 'T00:00:00');
+      const days = ['вс','пн','вт','ср','чт','пт','сб'];
+      const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+      const el = document.createElement('div');
+      el.className = 'date-btn';
+      el.innerHTML = `
+        <span class="date-day">${days[dt.getDay()]}</span>
+        <span class="date-num">${dt.getDate()}</span>
+        <span class="date-month">${months[dt.getMonth()]}</span>`;
+      el.onclick = () => {
+        document.querySelectorAll('.date-btn').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        sel.date = { val: d, day: days[dt.getDay()], num: dt.getDate(), month: months[dt.getMonth()] };
+        enableBtn('btn2');
+      };
+      dg.appendChild(el);
+    });
+  } catch {
+    dg.innerHTML = '<div style="color:var(--rose);font-size:13px">Ошибка загрузки дат.</div>';
+  }
+}
+
+// ─── Загрузка слотов при переходе на шаг 3 ───────────────────────────────────
+async function loadSlots() {
+  const sg = document.getElementById('slots-grid');
+  sg.innerHTML = '<div style="color:var(--brown-light);font-size:13px;padding:8px">Загружаем...</div>';
+  try {
+    const res = await fetch(`${API}/api/slots/${sel.date.val}`);
+    const { slots } = await res.json();
+    sg.innerHTML = '';
+    if (!slots.length) {
+      sg.innerHTML = '<div style="color:var(--brown-light);font-size:13px">На эту дату мест нет.</div>';
+      return;
+    }
+    slots.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'slot-btn';
+      el.innerHTML = `${s.time_start}<svg class="slot-check" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>`;
+      el.onclick = () => {
+        document.querySelectorAll('.slot-btn').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        sel.slot = s;
+        checkStep3();
+      };
+      sg.appendChild(el);
+    });
+  } catch {
+    sg.innerHTML = '<div style="color:var(--rose);font-size:13px">Ошибка загрузки слотов.</div>';
+  }
+}
+
+// ─── Навигация ────────────────────────────────────────────────────────────────
+function enableBtn(id) {
+  document.getElementById(id).disabled = false;
+}
+
+function checkStep3() {
+  const name = document.getElementById('client-name').value.trim();
+  document.getElementById('btn3').disabled = !(sel.slot && name);
+}
+
+function goTo(step) {
+  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i + 1 === step));
+  document.querySelectorAll('.step').forEach(s => {
+    const n = parseInt(s.dataset.s);
+    s.classList.toggle('active', n === step);
+    s.classList.toggle('done', n < step);
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (step === 2) loadDates();
+  if (step === 3) loadSlots();
+}
+
+// ─── Отправка записи ─────────────────────────────────────────────────────────
+async function submit() {
+  const name = document.getElementById('client-name').value.trim();
+  const btn = document.getElementById('btn3');
+  btn.disabled = true;
+  btn.textContent = 'Отправляем...';
+
+  try {
+    const res = await fetch(`${API}/api/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: name,
+        service_id: String(sel.service.service_id),
+        service_name: sel.service.name,
+        price: Number(sel.service.price),
+        slot_id: sel.slot.slot_id,
+        date: sel.date.val,
+        time_start: sel.slot.time_start,
+        time_end: sel.slot.time_end,
+      }),
+    });
+
+    if (res.status === 409) {
+      alert('Этот слот только что заняли. Выберите другое время.');
+      btn.disabled = false;
+      btn.innerHTML = 'Записаться <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+      goTo(3);
+      return;
+    }
+
+    if (!res.ok) throw new Error();
+
+    // Успех
+    const box = document.getElementById('confirm-box');
+    box.innerHTML = `
+      <div class="confirm-row"><svg viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.418 3.582-8 8-8s8 3.582 8 8"/></svg><span><strong>${name}</strong></span></div>
+      <div class="confirm-row"><svg viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="1.8" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>${sel.service.name} — <strong>${Number(sel.service.price).toLocaleString('ru')} ₽</strong></span></div>
+      <div class="confirm-row"><svg viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>${sel.date.day}, ${sel.date.num} ${sel.date.month}</span></div>
+      <div class="confirm-row"><svg viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>${sel.slot.time_start} — ${sel.slot.time_end}</span></div>`;
+    goTo(4);
+
+  } catch {
+    alert('Что-то пошло не так. Попробуйте ещё раз.');
+    btn.disabled = false;
+    btn.innerHTML = 'Записаться <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+  }
+}
+
+// ─── Старт ────────────────────────────────────────────────────────────────────
+loadServices();
+</script>
+</body>
+</html>
