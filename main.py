@@ -20,13 +20,19 @@ SCOPES = [
 
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "")
 CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials/google_credentials.json")
+CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON", "")  # для Railway
 
 _spreadsheet = None
 
 def get_sheet(name: str) -> gspread.Worksheet:
     global _spreadsheet
     if _spreadsheet is None:
-        creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=SCOPES)
+        if CREDENTIALS_JSON:
+            import json
+            info = json.loads(CREDENTIALS_JSON)
+            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        else:
+            creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=SCOPES)
         client = gspread.authorize(creds)
         _spreadsheet = client.open_by_key(SPREADSHEET_ID)
     return _spreadsheet.worksheet(name)
@@ -157,13 +163,17 @@ def create_booking(data: BookingRequest):
 
 # ─── Отдаём фронтенд ───────────────────────────────────────────────────────────
 
-# Статичные файлы (CSS, JS если будут)
+# Ищем index.html — сначала в static/, потом в корне
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def serve_index():
-    return FileResponse("static/index.html")
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    elif os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return {"error": "index.html not found"}
 
 
 if __name__ == "__main__":
