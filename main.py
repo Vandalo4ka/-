@@ -27,12 +27,29 @@ _spreadsheet = None
 def get_sheet(name: str) -> gspread.Worksheet:
     global _spreadsheet
     if _spreadsheet is None:
-        if CREDENTIALS_JSON:
-            import json
-            info = json.loads(CREDENTIALS_JSON)
+        import json, base64
+        # Способ 1: переменная окружения с base64
+        creds_b64 = os.getenv("GOOGLE_CREDENTIALS_B64", "")
+        # Способ 2: переменная окружения с JSON
+        creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+        # Способ 3: файл
+        creds_file = None
+        for path in ["credentials/google_credentials.json", "google_credentials.json", "svetlana-manicure-bot-653e27eabaa5.json"]:
+            if os.path.exists(path):
+                creds_file = path
+                break
+
+        if creds_b64:
+            info = json.loads(base64.b64decode(creds_b64).decode())
             creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        elif creds_json and len(creds_json) > 100:
+            info = json.loads(creds_json)
+            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        elif creds_file:
+            creds = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
         else:
-            creds = Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=SCOPES)
+            raise Exception("No credentials found")
+
         client = gspread.authorize(creds)
         _spreadsheet = client.open_by_key(SPREADSHEET_ID)
     return _spreadsheet.worksheet(name)
