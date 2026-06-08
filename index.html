@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Запись к мастеру маникюра</title>
+  <style>
+    :root {
+      --bg: #f3ede5;
+      --card: #ffffff;
+      --text: #6b4b43;
+      --muted: #9d7f78;
+      --accent: #c98091;
+      --accent-dark: #b86d7f;
+      --accent-light: #ead0d5;
+      --line: #eadfda;
+      --error: #b85d70;
+      --shadow: rgba(92, 62, 50, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Georgia, "Times New Roman", serif;
+      display: flex;
+      justify-content: center;
+      padding: 28px 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .avatar {
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: #f4dce2;
+      border: 2px solid #e6b9c4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 34px;
+    }
+
+    h1 {
+      text-align: center;
+      font-weight: 400;
+      font-size: 34px;
+      margin: 0 0 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 34px;
+      font-size: 14px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 0 auto 26px;
+      max-width: 440px;
+      font-family: Arial, sans-serif;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .step {
+      text-align: center;
+      position: relative;
+    }
+
+    .step::before {
+      content: "";
+      position: absolute;
+      top: 16px;
+      left: -50%;
+      width: 100%;
+      height: 1px;
+      background: var(--line);
+      z-index: 0;
+    }
+
+    .step:first-child::before {
+      display: none;
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto 8px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+      font-weight: 700;
+    }
+
+    .step.active .step-num {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .step.active {
+      color: var(--accent);
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 34px;
+      box-shadow: 0 18px 40px var(--shadow);
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 22px;
+      margin-bottom: 24px;
+    }
+
+    .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #f4dce2;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, sans-serif;
+      font-size: 15px;
+      flex: none;
+    }
+
+    .options {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .option {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: #fff;
+      transition: 0.15s ease;
+    }
+
+    .option:hover,
+    .option.selected {
+      border-color: var(--accent);
+      background: #fbf1f3;
+    }
+
+    .option-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .option-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 22px;
+      font-family: Arial, sans-serif;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 15px;
+      color: var(--text);
+      outline: none;
+      font-family: Arial, sans-serif;
+      background: #fff;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 82px;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 12px;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      transition: 0.15s ease;
+    }
+
+    .primary {
+      background: var(--accent-light);
+      color: #fff;
+      cursor: not-allowed;
+    }
+
+    .primary.enabled {
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .primary.enabled:hover {
+      background: var(--accent-dark);
+    }
+
+    .secondary {
+      background: #f7f0ed;
+      color: var(--muted);
+    }
+
+    .error {
+      color: var(--error);
+      font-family: Arial, sans-serif;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .success {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      line-height: 1.7;
+      padding: 20px 0;
+    }
+
+    .success-title {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .summary {
+      background: #fbf1f3;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 20px;
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 22px 12px;
+      }
+
+      .card {
+        padding: 24px 18px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      .buttons {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="avatar">♡</div>
+    <h1>Запись к Светлане</h1>
+    <div class="subtitle">Мастер маникюра и педикюра</div>
+
+    <div class="steps">
+      <div class="step active" id="step1">
+        <div class="step-num">1</div>
+        <div>Услуга</div>
+      </div>
+      <div class="step" id="step2">
+        <div class="step-num">2</div>
+        <div>Дата</div>
+      </div>
+      <div class="step" id="step3">
+        <div class="step-num">3</div>
+        <div>Время</div>
+      </div>
+      <div class="step" id="step4">
+        <div class="step-num">4</div>
+        <div>Готово</div>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="card-title">
+        <span class="icon" id="cardIcon">♡</span>
+        <span id="cardTitle">Выберите услугу</span>
+      </div>
+
+      <div id="error" class="error hidden"></div>
+      <div id="content"></div>
+
+      <div class="buttons" id="buttons">
+        <button class="secondary hidden" id="backBtn">Назад</button>
+        <button class="primary" id="nextBtn">Далее →</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      step: 1,
+      services: [],
+      dates: [],
+      slots: [],
+      selectedService: null,
+      selectedDate: null,
+      selectedTime: null,
+      clientName: "",
+      phone: "",
+      notes: ""
+    };
+
+    const content = document.getElementById("content");
+    const errorBox = document.getElementById("error");
+    const nextBtn = document.getElementById("nextBtn");
+    const backBtn = document.getElementById("backBtn");
+    const cardTitle = document.getElementById("cardTitle");
+    const cardIcon = document.getElementById("cardIcon");
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.remove("hidden");
+    }
+
+    function clearError() {
+      errorBox.textContent = "";
+      errorBox.classList.add("hidden");
+    }
+
+    async function api(url, options) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.detail || "Ошибка сервера");
+      }
+
+      return data;
+    }
+
+    function updateSteps() {
+      [1, 2, 3, 4].forEach((n) => {
+        document.getElementById(`step${n}`).classList.toggle("active", n === state.step);
+      });
+    }
+
+    function setNextEnabled(enabled) {
+      nextBtn.disabled = !enabled;
+      nextBtn.classList.toggle("enabled", enabled);
+    }
+
+    function goToStep(step) {
+      state.step = step;
+      updateSteps();
+
+      if (step === 1) renderServices();
+      if (step === 2) renderDates();
+      if (step === 3) renderSlots();
+      if (step === 4) renderClientForm();
+    }
+
+    function renderOptionList(items, selectedValue, valueKey, titleFn, metaFn = null) {
+      return `
+        <div class="options">
+          ${items.map((item) => {
+            const value = item[valueKey];
+            const selected = value === selectedValue ? "selected" : "";
+            const meta = metaFn ? `<div class="option-meta">${metaFn(item)}</div>` : "";
+
+            return `
+              <div class="option ${selected}" data-value="${value}">
+                <div class="option-main">${titleFn(item)}</div>
+                ${meta}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    async function renderServices() {
+      clearError();
+      cardTitle.textContent = "Выберите услугу";
+      cardIcon.textContent = "♡";
+      content.innerHTML = "Загрузка услуг...";
+      backBtn.classList.add("hidden");
+      nextBtn.classList.remove("hidden");
+      nextBtn.textContent = "Далее →";
+      setNextEnabled(false);
+
+      try {
+        state.services = await api("/api/services");
+
+        if (!state.services.length) {
+          content.innerHTML = "";
+          showError("В таблице нет активных услуг.");
+          return;
+        }
+
+        content.innerHTML = renderOptionList(
+          state.services,
+          state.selectedService?.service_id,
+          "service_id",
+          (item) => `<span>${item.name}</span><span>${item.price} ₽</span>`,
+          (item) => `${item.duration_min} минут`
+        );
+
+        document.querySelectorAll(".option").forEach((el) => {
+          el.onclick = () => {
+            state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
+            renderServices();
+            setNextEnabled(true);
+          };
+        });
+
+        setNextEnabled(Boolean(state.selectedService));
+      } catch (error) {
+        content.innerHTML = "";
+        showError("Не удалось загрузить услуги. " + error.message);
+      }
+    }
+
+    async function renderDates() {
+      clearError();
+      cardTitle.textContent = "Выберите дату";
+      cardIcon.textContent = "📅";
+      content.innerHTML = "Загрузка дат...";
+      backBtn.classList.remove("hidden");
+      nextBtn.classList.remove("hidden");
+      nextBtn.textContent = "Далее →";
+      setNextEnabled(false);
+
+      try {
+        state.dates = await api("/api/dates");
+
+        if (!state.dates.length) {
+          content.innerHTML = "";
+          showError("Свободных дат пока нет.");
+          return;
+        }
+
+        content.innerHTML = `
+          <div class="options">
+            ${state.dates.map((date) => `
+              <div class="option ${date === state.selectedDate ? "selected" : ""}" data-value="${date}">
+                <div class="option-main"><span>${date}</span></div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+
+        document.querySelectorAll(".option").forEach((el) => {
+          el.onclick = () => {
+            state.selectedDate = el.dataset.value;
+            state.selectedTime = null;
+            renderDates();
+            setNextEnabled(true);
+          };
+        });
+
+        setNextEnabled(Boolean(state.selectedDate));
+      } catch (error) {
+        content.innerHTML = "";
+        showError("Не удалось загрузить даты. " + error.message);
+      }
+    }
+
+    async function renderSlots() {
+      clearError();
+      cardTitle.textContent = "Выберите время";
+      cardIcon.textContent = "🕒";
+      content.innerHTML = "Загрузка времени...";
+      backBtn.classList.remove("hidden");
+      nextBtn.classList.remove("hidden");
+      nextBtn.textContent = "Далее →";
+      setNextEnabled(false);
+
+      try {
+        state.slots = await api(`/api/slots?date=${encodeURIComponent(state.selectedDate)}`);
+
+        if (!state.slots.length) {
+          content.innerHTML = "";
+          showError("На эту дату нет свободного времени.");
+          return;
+        }
+
+        content.innerHTML = renderOptionList(
+          state.slots,
+          state.selectedTime,
+          "time",
+          (item) => `<span>${item.time}</span>`
+        );
+
+        document.querySelectorAll(".option").forEach((el) => {
+          el.onclick = () => {
+            state.selectedTime = el.dataset.value;
+            renderSlots();
+            setNextEnabled(true);
+          };
+        });
+
+        setNextEnabled(Boolean(state.selectedTime));
+      } catch (error) {
+        content.innerHTML = "";
+        showError("Не удалось загрузить время. " + error.message);
+      }
+    }
+
+    function renderClientForm() {
+      clearError();
+      cardTitle.textContent = "Ваши данные";
+      cardIcon.textContent = "✓";
+      backBtn.classList.remove("hidden");
+      nextBtn.classList.remove("hidden");
+      nextBtn.textContent = "Записаться";
+      setNextEnabled(true);
+
+      content.innerHTML = `
+        <div class="summary">
+          <b>Услуга:</b> ${state.selectedService.name}<br>
+          <b>Дата:</b> ${state.selectedDate}<br>
+          <b>Время:</b> ${state.selectedTime}
+        </div>
+
+        <div class="form-grid">
+          <input id="clientName" placeholder="Ваше имя" value="${state.clientName}">
+          <input id="phone" placeholder="Телефон" value="${state.phone}">
+          <textarea id="notes" placeholder="Комментарий, если нужно">${state.notes}</textarea>
+        </div>
+      `;
+
+      document.getElementById("clientName").oninput = (e) => state.clientName = e.target.value;
+      document.getElementById("phone").oninput = (e) => state.phone = e.target.value;
+      document.getElementById("notes").oninput = (e) => state.notes = e.target.value;
+    }
+
+    async function submitBooking() {
+      clearError();
+
+      const name = document.getElementById("clientName")?.value.trim();
+      const phone = document.getElementById("phone")?.value.trim();
+      const notes = document.getElementById("notes")?.value.trim();
+
+      if (!name || !phone) {
+        showError("Введите имя и телефон.");
+        return;
+      }
+
+      nextBtn.textContent = "Отправляем...";
+      nextBtn.disabled = true;
+
+      try {
+        const result = await api("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_name: name,
+            phone,
+            notes,
+            service_id: state.selectedService.service_id,
+            date: state.selectedDate,
+            time: state.selectedTime
+          })
+        });
+
+        state.step = 4;
+        updateSteps();
+        cardTitle.textContent = "Запись создана";
+        cardIcon.textContent = "✓";
+        content.innerHTML = `
+          <div class="success">
+            <div class="success-title">Вы записаны</div>
+            <div>
+              <b>${result.service_name}</b><br>
+              ${result.date}, ${result.time}<br><br>
+              Номер записи: ${result.booking_id}
+            </div>
+          </div>
+        `;
+        document.getElementById("buttons").classList.add("hidden");
+      } catch (error) {
+        nextBtn.textContent = "Записаться";
+        nextBtn.disabled = false;
+        showError("Не удалось создать запись. " + error.message);
+      }
+    }
+
+    nextBtn.onclick = () => {
+      if (state.step === 1 && state.selectedService) goToStep(2);
+      else if (state.step === 2 && state.selectedDate) goToStep(3);
+      else if (state.step === 3 && state.selectedTime) goToStep(4);
+      else if (state.step === 4) submitBooking();
+    };
+
+    backBtn.onclick = () => {
+      if (state.step > 1) goToStep(state.step - 1);
+    };
+
+    goToStep(1);
+  </script>
+</body>
+</html>
