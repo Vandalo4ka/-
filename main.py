@@ -50,7 +50,6 @@ app.add_middleware(
 
 class BookingRequest(BaseModel):
     client_name: str
-    phone: str | None = ""
     notes: str | None = ""
     service_id: str
     date: str
@@ -241,7 +240,6 @@ def process_due_reminders():
 
         seconds_left = (appointment_dt - now).total_seconds()
 
-        # Send once when appointment is within the next 24 hours.
         if 0 < seconds_left <= 24 * 60 * 60:
             text = (
                 "Напоминание о записи\n\n"
@@ -501,7 +499,6 @@ def create_booking(request: BookingRequest):
             booking_id,
             created_at,
             request.client_name,
-            request.phone or "",
             request.service_id,
             service.get("name", ""),
             request.date,
