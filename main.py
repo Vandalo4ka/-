@@ -4,10 +4,14 @@ import base64
 import uuid
 import traceback
 import time
+import threading
+import urllib.parse
+import urllib.request
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import gspread
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from google.oauth2.service_account import Credentials
@@ -15,19 +19,22 @@ from pydantic import BaseModel
 
 
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
+TIMEZONE = os.getenv("TIMEZONE", "Asia/Tbilisi")
 
-# Google Sheets scope is enough for reading/writing by spreadsheet ID.
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-# Cache time in seconds.
-# 300 = 5 minutes.
 CACHE_TTL_SECONDS = 300
+REMINDER_CHECK_SECONDS = 600
 
 _cache = {
     "services": {"time": 0, "data": None},
     "dates": {"time": 0, "data": None},
     "slots": {}
 }
+
+_reminder_thread_started = False
 
 
 app = FastAPI(title="Manicure Booking API")
@@ -43,7 +50,7 @@ app.add_middleware(
 
 class BookingRequest(BaseModel):
     client_name: str
-    phone: str
+    phone: str | None = ""
     notes: str | None = ""
     service_id: str
     date: str
@@ -121,6 +128,143 @@ def worksheet_records(sheet_name: str):
         raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
+def get_header_map(worksheet):
+    headers = worksheet.row_values(1)
+    return {str(header).strip(): index for index, header in enumerate(headers, start=1)}
+
+
+def update_booking_columns(worksheet, row_number: int, updates: dict):
+    header_map = get_header_map(worksheet)
+    for column_name, value in updates.items():
+        col = header_map.get(column_name)
+        if col:
+            worksheet.update_cell(row_number, col, value)
+
+
+def send_telegram_message(chat_id: str, text: str) -> bool:
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return False
+
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": text
+        }).encode("utf-8")
+
+        request = urllib.request.Request(url, data=payload, method="POST")
+        with urllib.request.urlopen(request, timeout=8) as response:
+            response.read()
+
+        return True
+    except Exception:
+        return False
+
+
+def send_master_notification(text: str) -> bool:
+    if not TELEGRAM_CHAT_ID:
+        return False
+    return send_telegram_message(TELEGRAM_CHAT_ID, text)
+
+
+def make_telegram_reminder_url(booking_id: str) -> str | None:
+    if not TELEGRAM_BOT_USERNAME:
+        return None
+
+    username = TELEGRAM_BOT_USERNAME.lstrip("@").strip()
+    if not username:
+        return None
+
+    return f"https://t.me/{username}?start={booking_id}"
+
+
+def parse_appointment_datetime(date_text: str, time_text: str):
+    tz = ZoneInfo(TIMEZONE)
+    raw = f"{date_text.strip()} {time_text.strip()}"
+
+    formats = [
+        "%Y-%m-%d %H:%M",
+        "%d.%m.%Y %H:%M",
+        "%d/%m/%Y %H:%M",
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=tz)
+        except ValueError:
+            pass
+
+    return None
+
+
+def reminder_loop():
+    while True:
+        try:
+            process_due_reminders()
+        except Exception:
+            pass
+
+        time.sleep(REMINDER_CHECK_SECONDS)
+
+
+def process_due_reminders():
+    if not TELEGRAM_BOT_TOKEN:
+        return
+
+    spreadsheet = get_spreadsheet()
+    bookings_ws = spreadsheet.worksheet("bookings")
+    rows = bookings_ws.get_all_records()
+    tz = ZoneInfo(TIMEZONE)
+    now = datetime.now(tz)
+
+    for row_number, row in enumerate(rows, start=2):
+        reminder_requested = str(row.get("reminder_requested", "")).strip().lower()
+        reminder_sent = str(row.get("reminder_sent", "")).strip().lower()
+        chat_id = str(row.get("telegram_chat_id", "")).strip()
+        status = str(row.get("status", "")).strip().lower()
+
+        if reminder_requested not in ["yes", "true", "1", "да"]:
+            continue
+
+        if reminder_sent in ["yes", "true", "1", "да"]:
+            continue
+
+        if not chat_id:
+            continue
+
+        if status in ["cancelled", "canceled", "отменено"]:
+            continue
+
+        appointment_dt = parse_appointment_datetime(str(row.get("date", "")), str(row.get("time", "")))
+        if not appointment_dt:
+            continue
+
+        seconds_left = (appointment_dt - now).total_seconds()
+
+        # Send once when appointment is within the next 24 hours.
+        if 0 < seconds_left <= 24 * 60 * 60:
+            text = (
+                "Напоминание о записи\n\n"
+                f"Услуга: {row.get('service_name', '')}\n"
+                f"Дата: {row.get('date', '')}\n"
+                f"Время: {row.get('time', '')}\n\n"
+                "Ждём вас!"
+            )
+
+            if send_telegram_message(chat_id, text):
+                update_booking_columns(bookings_ws, row_number, {"reminder_sent": "yes"})
+
+
+@app.on_event("startup")
+def startup_event():
+    global _reminder_thread_started
+
+    if not _reminder_thread_started:
+        thread = threading.Thread(target=reminder_loop, daemon=True)
+        thread.start()
+        _reminder_thread_started = True
+
+
 @app.get("/")
 def index():
     return FileResponse("index.html")
@@ -133,6 +277,10 @@ def health():
         "spreadsheet_id_present": bool(os.getenv("SPREADSHEET_ID")),
         "credentials_b64_present": bool(os.getenv("GOOGLE_CREDENTIALS_B64")),
         "credentials_json_present": bool(os.getenv("GOOGLE_CREDENTIALS_JSON")),
+        "telegram_bot_token_present": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+        "telegram_chat_id_present": bool(os.getenv("TELEGRAM_CHAT_ID")),
+        "telegram_bot_username_present": bool(os.getenv("TELEGRAM_BOT_USERNAME")),
+        "timezone": TIMEZONE,
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
     }
 
@@ -181,6 +329,64 @@ def debug_cache():
 def debug_cache_clear():
     clear_cache()
     return {"status": "cache cleared"}
+
+
+@app.post("/debug/reminders/check")
+def debug_reminders_check():
+    process_due_reminders()
+    return {"status": "checked"}
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    update = await request.json()
+
+    message = update.get("message") or {}
+    chat = message.get("chat") or {}
+    text = str(message.get("text") or "").strip()
+    chat_id = str(chat.get("id") or "")
+
+    if not chat_id or not text.startswith("/start"):
+        return {"ok": True}
+
+    parts = text.split(maxsplit=1)
+    booking_id = parts[1].strip() if len(parts) > 1 else ""
+
+    if not booking_id:
+        send_telegram_message(chat_id, "Чтобы подключить напоминание, нажмите кнопку на странице записи.")
+        return {"ok": True}
+
+    try:
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet("bookings")
+        rows = bookings_ws.get_all_records()
+
+        for row_number, row in enumerate(rows, start=2):
+            current_booking_id = str(row.get("booking_id", "")).strip()
+
+            if current_booking_id == booking_id:
+                update_booking_columns(bookings_ws, row_number, {
+                    "telegram_chat_id": chat_id,
+                    "reminder_requested": "yes",
+                    "reminder_sent": "no",
+                })
+
+                send_telegram_message(
+                    chat_id,
+                    "Напоминание подключено.\n\n"
+                    f"Запись: {row.get('service_name', '')}\n"
+                    f"Дата: {row.get('date', '')}\n"
+                    f"Время: {row.get('time', '')}\n\n"
+                    "Мы напомним вам за сутки."
+                )
+                return {"ok": True}
+
+        send_telegram_message(chat_id, "Запись не найдена. Попробуйте открыть кнопку напоминания ещё раз.")
+        return {"ok": True}
+
+    except Exception:
+        send_telegram_message(chat_id, "Не удалось подключить напоминание. Попробуйте позже.")
+        return {"ok": True}
 
 
 @app.get("/api/services")
@@ -295,13 +501,16 @@ def create_booking(request: BookingRequest):
             booking_id,
             created_at,
             request.client_name,
-            request.phone,
+            request.phone or "",
             request.service_id,
             service.get("name", ""),
             request.date,
             request.time,
             request.notes or "",
             "new",
+            "",
+            "no",
+            "no",
         ])
 
         headers = slots_ws.row_values(1)
@@ -315,9 +524,18 @@ def create_booking(request: BookingRequest):
             raise RuntimeError("Column status not found in slots sheet")
 
         slots_ws.update_cell(slot_row_number, status_col, "booked")
-
-        # Important: after a booking, clear cache so the booked slot disappears immediately.
         clear_cache()
+
+        message = (
+            "Новая запись\n\n"
+            f"Клиент: {request.client_name}\n"
+            f"Услуга: {service.get('name', '')}\n"
+            f"Дата: {request.date}\n"
+            f"Время: {request.time}\n"
+            f"Комментарий: {request.notes or '-'}\n"
+            f"Номер записи: {booking_id}"
+        )
+        send_master_notification(message)
 
         return {
             "booking_id": booking_id,
@@ -325,6 +543,7 @@ def create_booking(request: BookingRequest):
             "date": request.date,
             "time": request.time,
             "status": "new",
+            "telegram_reminder_url": make_telegram_reminder_url(booking_id),
         }
 
     except HTTPException:
