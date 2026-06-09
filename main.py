@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import gspread
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from google.oauth2.service_account import Credentials
 from pydantic import BaseModel
 
@@ -53,6 +53,10 @@ class BookingRequest(BaseModel):
     service_id: str
     date: str
     time: str
+
+
+class CancelBookingRequest(BaseModel):
+    booking_id: str
 
 
 def readable_error(exc: Exception) -> str:
@@ -336,6 +340,131 @@ def index():
     return FileResponse("index.html")
 
 
+@app.get("/cancel")
+def cancel_page(booking_id: str = Query(...)):
+    safe_booking_id = str(booking_id).strip()
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Отмена записи</title>
+      <style>
+        body {{
+          margin: 0;
+          min-height: 100vh;
+          background: #f3ede5;
+          color: #6b4b43;
+          font-family: Arial, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }}
+        .card {{
+          width: 100%;
+          max-width: 520px;
+          background: #fff;
+          border-radius: 22px;
+          padding: 30px;
+          box-shadow: 0 18px 40px rgba(92, 62, 50, 0.10);
+          text-align: center;
+        }}
+        h1 {{
+          font-family: Georgia, "Times New Roman", serif;
+          font-weight: 400;
+          margin-top: 0;
+        }}
+        .summary {{
+          background: #fbf1f3;
+          border: 1px solid #eadfda;
+          border-radius: 16px;
+          padding: 16px;
+          margin: 20px 0;
+          line-height: 1.6;
+        }}
+        button {{
+          width: 100%;
+          border: none;
+          border-radius: 14px;
+          padding: 16px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          background: #c98091;
+          color: white;
+        }}
+        button:hover {{
+          background: #b86d7f;
+        }}
+        .message {{
+          margin-top: 18px;
+          line-height: 1.6;
+        }}
+        a {{
+          color: #b86d7f;
+        }}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>Отмена записи</h1>
+        <div class="summary">
+          Номер записи:<br>
+          <b>{safe_booking_id}</b>
+        </div>
+
+        <button id="cancelBtn">Отменить запись</button>
+        <div class="message" id="message"></div>
+      </div>
+
+      <script>
+        const bookingId = {json.dumps(safe_booking_id)};
+
+        document.getElementById("cancelBtn").onclick = async () => {{
+          const confirmed = confirm("Точно отменить запись? Это время снова станет доступным для записи.");
+
+          if (!confirmed) {{
+            return;
+          }}
+
+          const btn = document.getElementById("cancelBtn");
+          const message = document.getElementById("message");
+
+          btn.disabled = true;
+          btn.textContent = "Отменяем...";
+
+          try {{
+            const response = await fetch("/api/bookings/cancel", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{ booking_id: bookingId }})
+            }});
+
+            const data = await response.json();
+
+            if (!response.ok) {{
+              throw new Error(data.detail || "Ошибка сервера");
+            }}
+
+            btn.style.display = "none";
+            message.innerHTML = "Запись отменена.<br>Это время снова доступно для записи.";
+          }} catch (error) {{
+            btn.disabled = false;
+            btn.textContent = "Отменить запись";
+            message.textContent = "Не удалось отменить запись. " + error.message;
+          }}
+        }};
+      </script>
+    </body>
+    </html>
+    """
+
+    return HTMLResponse(html)
+
+
 @app.get("/health")
 def health():
     return {
@@ -470,6 +599,26 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
 
+
+def find_booking_by_id(bookings_ws, booking_id: str):
+    rows = bookings_ws.get_all_records()
+
+    for row_number, row in enumerate(rows, start=2):
+        current_booking_id = str(row.get("booking_id", "")).strip()
+        if current_booking_id == str(booking_id).strip():
+            return row_number, row
+
+    return None, None
+
+
+def free_schedule_cell_for_booking(schedule_ws, date_text: str, time_text: str):
+    _, schedule_values = get_schedule_matrix()
+    schedule_row, schedule_col = find_schedule_position(schedule_values, date_text, time_text)
+
+    if schedule_row and schedule_col:
+        schedule_ws.update_cell(schedule_row, schedule_col, "free")
+
+
 @app.get("/api/services")
 def get_services():
     if cache_is_valid(_cache["services"]):
@@ -578,6 +727,78 @@ def get_slots(date: str = Query(...)):
         raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
+
+@app.post("/api/bookings/cancel")
+def cancel_booking(request: CancelBookingRequest):
+    try:
+        booking_id = str(request.booking_id).strip()
+
+        if not booking_id:
+            raise HTTPException(status_code=400, detail="Booking ID is required")
+
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet("bookings")
+        schedule_ws = spreadsheet.worksheet("schedule")
+
+        row_number, booking = find_booking_by_id(bookings_ws, booking_id)
+
+        if not row_number:
+            raise HTTPException(status_code=404, detail="Booking not found")
+
+        current_status = str(booking.get("status", "")).strip().lower()
+
+        if current_status in ["cancelled", "canceled", "отменено"]:
+            return {
+                "status": "already_cancelled",
+                "booking_id": booking_id,
+                "message": "Запись уже отменена",
+            }
+
+        update_booking_columns(bookings_ws, row_number, {
+            "status": "cancelled",
+            "reminder_sent": "cancelled",
+        })
+
+        free_schedule_cell_for_booking(
+            schedule_ws,
+            str(booking.get("date", "")),
+            str(booking.get("time", "")),
+        )
+
+        clear_cache()
+
+        message = (
+            "Запись отменена\\n\\n"
+            f"Клиент: {booking.get('client_name', '')}\\n"
+            f"Услуга: {booking.get('service_name', '')}\\n"
+            f"Дата: {booking.get('date', '')}\\n"
+            f"Время: {booking.get('time', '')}\\n"
+            f"Номер записи: {booking_id}"
+        )
+        send_master_notification(message)
+
+        client_chat_id = str(booking.get("telegram_chat_id", "")).strip()
+        if client_chat_id:
+            send_telegram_message(
+                client_chat_id,
+                "Ваша запись отменена.\\n\\n"
+                f"Услуга: {booking.get('service_name', '')}\\n"
+                f"Дата: {booking.get('date', '')}\\n"
+                f"Время: {booking.get('time', '')}"
+            )
+
+        return {
+            "status": "cancelled",
+            "booking_id": booking_id,
+            "message": "Запись отменена",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
 @app.post("/api/bookings")
 def create_booking(request: BookingRequest):
     try:
@@ -658,6 +879,7 @@ def create_booking(request: BookingRequest):
             "time": request.time,
             "status": "new",
             "telegram_reminder_url": make_telegram_reminder_url(booking_id),
+            "cancel_url": f"/cancel?booking_id={urllib.parse.quote(booking_id)}",
         }
 
     except HTTPException:
