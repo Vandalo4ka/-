@@ -514,7 +514,7 @@ def get_dates():
 
             for cell in row[1:]:
                 status = str(cell).strip().lower()
-                if status == "free":
+                if status in ["free", ""]:
                     has_free_slot = True
                     break
 
@@ -562,7 +562,7 @@ def get_slots(date: str = Query(...)):
             if len(target_row) >= col_index:
                 status = str(target_row[col_index - 1]).strip().lower()
 
-            if status == "free":
+            if status in ["free", ""]:
                 slots.append({
                     "slot_id": f"{date}-{time_text}",
                     "date": normalize_date(date),
@@ -613,7 +613,7 @@ def create_booking(request: BookingRequest):
         current_status = schedule_ws.cell(schedule_row, schedule_col).value
         current_status = str(current_status or "").strip().lower()
 
-        if current_status != "free":
+        if current_status not in ["free", ""]:
             clear_cache()
             raise HTTPException(status_code=409, detail="This time is no longer available")
 
