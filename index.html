@@ -19,9 +19,7 @@
       --shadow: rgba(92, 62, 50, 0.10);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -34,10 +32,7 @@
       padding: 28px 16px;
     }
 
-    .app {
-      width: 100%;
-      max-width: 680px;
-    }
+    .app { width: 100%; max-width: 680px; }
 
     .avatar {
       width: 74px;
@@ -96,9 +91,7 @@
       z-index: 0;
     }
 
-    .step:first-child::before {
-      display: none;
-    }
+    .step:first-child::before { display: none; }
 
     .step-num {
       width: 32px;
@@ -121,9 +114,7 @@
       border-color: var(--accent);
     }
 
-    .step.active {
-      color: var(--accent);
-    }
+    .step.active { color: var(--accent); }
 
     .card {
       background: var(--card);
@@ -216,9 +207,7 @@
     }
 
     input:focus,
-    textarea:focus {
-      border-color: var(--accent);
-    }
+    textarea:focus { border-color: var(--accent); }
 
     .buttons {
       display: grid;
@@ -226,7 +215,8 @@
       gap: 12px;
     }
 
-    button {
+    button,
+    .tg-button {
       border: none;
       border-radius: 14px;
       padding: 16px;
@@ -235,6 +225,9 @@
       cursor: pointer;
       font-family: Arial, sans-serif;
       transition: 0.15s ease;
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
     }
 
     .primary {
@@ -248,13 +241,21 @@
       cursor: pointer;
     }
 
-    .primary.enabled:hover {
+    .primary.enabled:hover,
+    .tg-button:hover {
       background: var(--accent-dark);
     }
 
     .secondary {
       background: #f7f0ed;
       color: var(--muted);
+    }
+
+    .tg-button {
+      margin-top: 14px;
+      background: var(--accent);
+      color: white;
+      width: 100%;
     }
 
     .error {
@@ -287,26 +288,13 @@
       line-height: 1.6;
     }
 
-    .hidden {
-      display: none;
-    }
+    .hidden { display: none; }
 
     @media (max-width: 560px) {
-      body {
-        padding: 22px 12px;
-      }
-
-      .card {
-        padding: 24px 18px;
-      }
-
-      h1 {
-        font-size: 30px;
-      }
-
-      .buttons {
-        grid-template-columns: 1fr;
-      }
+      body { padding: 22px 12px; }
+      .card { padding: 24px 18px; }
+      h1 { font-size: 30px; }
+      .buttons { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -318,22 +306,10 @@
     <div class="subtitle">Мастер маникюра и педикюра</div>
 
     <div class="steps">
-      <div class="step active" id="step1">
-        <div class="step-num">1</div>
-        <div>Услуга</div>
-      </div>
-      <div class="step" id="step2">
-        <div class="step-num">2</div>
-        <div>Дата</div>
-      </div>
-      <div class="step" id="step3">
-        <div class="step-num">3</div>
-        <div>Время</div>
-      </div>
-      <div class="step" id="step4">
-        <div class="step-num">4</div>
-        <div>Готово</div>
-      </div>
+      <div class="step active" id="step1"><div class="step-num">1</div><div>Услуга</div></div>
+      <div class="step" id="step2"><div class="step-num">2</div><div>Дата</div></div>
+      <div class="step" id="step3"><div class="step-num">3</div><div>Время</div></div>
+      <div class="step" id="step4"><div class="step-num">4</div><div>Готово</div></div>
     </div>
 
     <section class="card">
@@ -609,6 +585,11 @@
         updateSteps();
         cardTitle.textContent = "Запись создана";
         cardIcon.textContent = "✓";
+
+        const telegramButton = result.telegram_reminder_url
+          ? `<a class="tg-button" href="${result.telegram_reminder_url}" target="_blank" rel="noopener">Получить напоминание в Telegram</a>`
+          : "";
+
         content.innerHTML = `
           <div class="success">
             <div class="success-title">Вы записаны</div>
@@ -621,6 +602,12 @@
             <div class="summary" style="margin-top: 22px; text-align: left;">
               <b>Чтобы не забыть:</b><br>
               добавьте запись в календарь или сделайте скриншот этого экрана.
+            </div>
+
+            <div class="summary" style="text-align: left;">
+              <b>Хотите напоминание за сутки?</b><br>
+              Нажмите кнопку ниже, откройте Telegram-бота и нажмите Start.
+              ${telegramButton}
             </div>
           </div>
         `;
