@@ -289,10 +289,10 @@ def process_due_reminders():
     now = datetime.now(tz)
 
     for row_number, row in enumerate(rows, start=2):
-        reminder_requested = str(row.get("reminder_requested", "")).strip().lower()
-        reminder_sent = str(row.get("reminder_sent", "")).strip().lower()
+        reminder_requested = str(row.get("reminder_requested", "")).strip().casefold()
+        reminder_sent = str(row.get("reminder_sent", "")).strip().casefold()
         chat_id = str(row.get("telegram_chat_id", "")).strip()
-        status = str(row.get("status", "")).strip().lower()
+        status = str(row.get("status", "")).strip().casefold()
 
         if reminder_requested not in ["yes", "true", "1", "да"]:
             continue
@@ -628,7 +628,7 @@ def get_services():
 
     services = []
     for row in records:
-        is_active = str(row.get("is_active", "")).strip().lower()
+        is_active = str(row.get("is_active", "")).strip().casefold()
         if is_active in ["true", "1", "yes", "да"]:
             services.append({
                 "service_id": str(row.get("service_id", "")).strip(),
@@ -662,7 +662,7 @@ def get_dates():
             has_free_slot = False
 
             for cell in row[1:]:
-                status = str(cell).strip().lower()
+                status = str(cell).strip().casefold()
                 if status in ["free", ""]:
                     has_free_slot = True
                     break
@@ -709,7 +709,7 @@ def get_slots(date: str = Query(...)):
 
             status = ""
             if len(target_row) >= col_index:
-                status = str(target_row[col_index - 1]).strip().lower()
+                status = str(target_row[col_index - 1]).strip().casefold()
 
             if status in ["free", ""]:
                 slots.append({
@@ -732,7 +732,7 @@ def get_slots(date: str = Query(...)):
 @app.get("/api/bookings/search")
 def search_bookings(client_name: str = Query(...)):
     try:
-        query = str(client_name).strip().lower()
+        query = str(client_name).strip().casefold()
 
         if len(query) < 2:
             raise HTTPException(status_code=400, detail="Введите минимум 2 символа имени")
@@ -745,12 +745,12 @@ def search_bookings(client_name: str = Query(...)):
 
         for row in rows:
             row_name = str(row.get("client_name", "")).strip()
-            row_status = str(row.get("status", "")).strip().lower()
+            row_status = str(row.get("status", "")).strip().casefold()
 
             if row_status in ["cancelled", "canceled", "отменено"]:
                 continue
 
-            if query not in row_name.lower():
+            if query not in row_name.casefold():
                 continue
 
             results.append({
@@ -788,7 +788,7 @@ def cancel_booking(request: CancelBookingRequest):
         if not row_number:
             raise HTTPException(status_code=404, detail="Booking not found")
 
-        current_status = str(booking.get("status", "")).strip().lower()
+        current_status = str(booking.get("status", "")).strip().casefold()
 
         if current_status in ["cancelled", "canceled", "отменено"]:
             return {
@@ -856,7 +856,7 @@ def create_booking(request: BookingRequest):
             (
                 row for row in services
                 if str(row.get("service_id", "")).strip() == request.service_id
-                and str(row.get("is_active", "")).strip().lower() in ["true", "1", "yes", "да"]
+                and str(row.get("is_active", "")).strip().casefold() in ["true", "1", "yes", "да"]
             ),
             None
         )
@@ -875,7 +875,7 @@ def create_booking(request: BookingRequest):
             raise HTTPException(status_code=409, detail="This time is no longer available")
 
         current_status = schedule_ws.cell(schedule_row, schedule_col).value
-        current_status = str(current_status or "").strip().lower()
+        current_status = str(current_status or "").strip().casefold()
 
         if current_status not in ["free", ""]:
             clear_cache()
