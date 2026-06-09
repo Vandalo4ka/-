@@ -258,6 +258,17 @@
       width: 100%;
     }
 
+    .cancel-button {
+      margin-top: 12px;
+      background: #f7f0ed;
+      color: var(--error);
+      width: 100%;
+    }
+
+    .cancel-button:hover {
+      background: #f3e3e0;
+    }
+
     .error {
       color: var(--error);
       font-family: Arial, sans-serif;
@@ -733,6 +744,35 @@
       document.getElementById("notes").oninput = (e) => state.notes = e.target.value;
     }
 
+
+    async function cancelBooking(bookingId) {
+      const confirmed = confirm("Отменить запись? Это действие освободит время для других клиентов.");
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        const result = await api("/api/bookings/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ booking_id: bookingId })
+        });
+
+        content.innerHTML = `
+          <div class="success">
+            <div class="success-title">Запись отменена</div>
+            <div>
+              Номер записи: ${result.booking_id}<br><br>
+              Это время снова доступно для записи.
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        showError("Не удалось отменить запись. " + error.message);
+      }
+    }
+
     async function submitBooking() {
       clearError();
 
@@ -776,6 +816,13 @@
               <b>${result.service_name}</b><br>
               ${result.date}, ${result.time}<br><br>
               Номер записи: ${result.booking_id}
+            </div>
+
+            <div class="summary" style="text-align: left;">
+              <b>Если нужно отменить запись позже:</b><br>
+              сохраните эту ссылку или сделайте скриншот экрана.
+              <br><br>
+              <a href="${result.cancel_url}" target="_blank" rel="noopener">Открыть страницу отмены записи</a>
             </div>
 
             <div class="summary" style="margin-top: 22px; text-align: left;">
