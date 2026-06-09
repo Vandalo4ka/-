@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Запись к мастеру маникюра</title>
+
   <style>
     :root {
       --bg: #f3ede5;
@@ -116,7 +117,7 @@
 
     .step.active .step-num {
       background: var(--accent);
-      color: white;
+      color: #fff;
       border-color: var(--accent);
     }
 
@@ -309,6 +310,7 @@
     }
   </style>
 </head>
+
 <body>
   <main class="app">
     <div class="avatar">♡</div>
@@ -345,7 +347,7 @@
 
       <div class="buttons" id="buttons">
         <button class="secondary hidden" id="backBtn">Назад</button>
-        <button class="primary" id="nextBtn">Далее →</button>
+        <button class="primary hidden" id="nextBtn">Далее →</button>
       </div>
     </section>
   </main>
@@ -438,8 +440,7 @@
       cardIcon.textContent = "♡";
       content.innerHTML = "Загрузка услуг...";
       backBtn.classList.add("hidden");
-      nextBtn.classList.remove("hidden");
-      nextBtn.textContent = "Далее →";
+      nextBtn.classList.add("hidden");
       setNextEnabled(false);
 
       try {
@@ -462,11 +463,11 @@
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
             state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
+            state.selectedDate = null;
+            state.selectedTime = null;
             goToStep(2);
           };
         });
-
-        setNextEnabled(Boolean(state.selectedService));
       } catch (error) {
         content.innerHTML = "";
         showError("Не удалось загрузить услуги. " + error.message);
@@ -479,8 +480,7 @@
       cardIcon.textContent = "📅";
       content.innerHTML = "Загрузка дат...";
       backBtn.classList.remove("hidden");
-      nextBtn.classList.remove("hidden");
-      nextBtn.textContent = "Далее →";
+      nextBtn.classList.add("hidden");
       setNextEnabled(false);
 
       try {
@@ -506,12 +506,9 @@
           el.onclick = () => {
             state.selectedDate = el.dataset.value;
             state.selectedTime = null;
-            renderDates();
-            setNextEnabled(true);
+            goToStep(3);
           };
         });
-
-        setNextEnabled(Boolean(state.selectedDate));
       } catch (error) {
         content.innerHTML = "";
         showError("Не удалось загрузить даты. " + error.message);
@@ -524,8 +521,7 @@
       cardIcon.textContent = "🕒";
       content.innerHTML = "Загрузка времени...";
       backBtn.classList.remove("hidden");
-      nextBtn.classList.remove("hidden");
-      nextBtn.textContent = "Далее →";
+      nextBtn.classList.add("hidden");
       setNextEnabled(false);
 
       try {
@@ -550,8 +546,6 @@
             goToStep(4);
           };
         });
-
-        setNextEnabled(Boolean(state.selectedTime));
       } catch (error) {
         content.innerHTML = "";
         showError("Не удалось загрузить время. " + error.message);
@@ -629,19 +623,18 @@
             </div>
           </div>
         `;
+
         document.getElementById("buttons").classList.add("hidden");
       } catch (error) {
         nextBtn.textContent = "Записаться";
         nextBtn.disabled = false;
+        setNextEnabled(true);
         showError("Не удалось создать запись. " + error.message);
       }
     }
 
     nextBtn.onclick = () => {
-      if (state.step === 1 && state.selectedService) goToStep(2);
-      else if (state.step === 2 && state.selectedDate) goToStep(3);
-      else if (state.step === 3 && state.selectedTime) goToStep(4);
-      else if (state.step === 4) submitBooking();
+      if (state.step === 4) submitBooking();
     };
 
     backBtn.onclick = () => {
