@@ -433,7 +433,14 @@
           "service_id",
           (item) => `<span>${item.name}</span><span>${item.price} €</span>`,
           (item) => `${item.duration_min} минут`
-        );
+        ) + `
+          <div class="summary" style="margin-top: -8px; text-align: left;">
+            <b>К маникюру с покрытием:</b><br>
+            снятие, укрепление, ремонт и небольшой дизайн входят в стоимость.<br>
+            Френч и сложные дизайны — +5 €.<br>
+            Наращивание — 5 € за 1 ноготь. Укажите количество ногтей в комментарии.
+          </div>
+        `;
 
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
