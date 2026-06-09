@@ -269,6 +269,38 @@
       background: #f3e3e0;
     }
 
+    .lookup-card {
+      margin-top: 20px;
+      background: #fbf1f3;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .booking-result {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-top: 12px;
+      background: #fff;
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .link-button {
+      border: none;
+      background: transparent;
+      color: var(--accent-dark);
+      cursor: pointer;
+      padding: 0;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: Arial, sans-serif;
+      text-decoration: underline;
+    }
+
     .error {
       color: var(--error);
       font-family: Arial, sans-serif;
@@ -451,6 +483,7 @@
       selectedTime: null,
       clientName: "",
       notes: "",
+      cancelMode: false,
       visibleDateStart: 0
     };
 
@@ -494,6 +527,7 @@
     }
 
     function goToStep(step) {
+      state.cancelMode = false;
       state.step = step;
       updateSteps();
 
@@ -522,6 +556,81 @@
       `;
     }
 
+
+    function renderCancelLookup() {
+      clearError();
+      state.cancelMode = true;
+      state.step = 4;
+      updateSteps();
+
+      cardTitle.textContent = "Отменить запись";
+      cardIcon.textContent = "×";
+      backBtn.classList.remove("hidden");
+      nextBtn.classList.add("hidden");
+
+      content.innerHTML = `
+        <div class="lookup-card">
+          <b>Найдите свою запись</b><br>
+          Введите имя, которое вы указали при записи.
+        </div>
+
+        <div class="form-grid" style="margin-top: 18px;">
+          <input id="lookupName" placeholder="Ваше имя">
+        </div>
+
+        <button class="primary enabled" id="lookupBtn">Найти запись</button>
+
+        <div id="lookupResults" style="margin-top: 20px;"></div>
+      `;
+
+      document.getElementById("lookupBtn").onclick = searchBookingByName;
+    }
+
+    async function searchBookingByName() {
+      clearError();
+
+      const name = document.getElementById("lookupName")?.value.trim();
+      const resultsBox = document.getElementById("lookupResults");
+
+      if (!name || name.length < 2) {
+        showError("Введите имя минимум из 2 символов.");
+        return;
+      }
+
+      resultsBox.innerHTML = "Ищем запись...";
+
+      try {
+        const results = await api(`/api/bookings/search?client_name=${encodeURIComponent(name)}`);
+
+        if (!results.length) {
+          resultsBox.innerHTML = `
+            <div class="lookup-card">
+              Активные записи не найдены. Проверьте имя или напишите мастеру.
+            </div>
+          `;
+          return;
+        }
+
+        resultsBox.innerHTML = results.map((booking) => `
+          <div class="booking-result">
+            <b>${booking.service_name}</b><br>
+            ${booking.date}, ${booking.time}<br>
+            Имя: ${booking.client_name}<br>
+            Номер записи: ${booking.booking_id}
+            ${booking.notes ? `<br>Комментарий: ${booking.notes}` : ""}
+
+            <button class="cancel-button" onclick="cancelBooking('${booking.booking_id}')">
+              Отменить эту запись
+            </button>
+          </div>
+        `).join("");
+      } catch (error) {
+        resultsBox.innerHTML = "";
+        showError("Не удалось найти запись. " + error.message);
+      }
+    }
+
+
     async function renderServices() {
       clearError();
       cardTitle.textContent = "Выберите услугу";
@@ -547,6 +656,14 @@
           (item) => `<span>${item.name}</span><span>${item.price} €</span>`,
           (item) => `${item.duration_min} минут`
         );
+
+        content.innerHTML += `
+          <div class="lookup-card">
+            Уже записывались и хотите отменить?
+            <br>
+            <button class="link-button" onclick="renderCancelLookup()">Найти и отменить запись</button>
+          </div>
+        `;
 
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
@@ -852,6 +969,11 @@
     };
 
     backBtn.onclick = () => {
+      if (state.cancelMode) {
+        goToStep(1);
+        return;
+      }
+
       if (state.step > 1) goToStep(state.step - 1);
     };
 
