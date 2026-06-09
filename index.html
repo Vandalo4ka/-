@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Запись к мастеру маникюра</title>
+
   <style>
     :root {
       --bg: #f3ede5;
@@ -18,9 +19,7 @@
       --shadow: rgba(92, 62, 50, 0.10);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -95,9 +94,7 @@
       z-index: 0;
     }
 
-    .step:first-child::before {
-      display: none;
-    }
+    .step:first-child::before { display: none; }
 
     .step-num {
       width: 32px;
@@ -116,13 +113,11 @@
 
     .step.active .step-num {
       background: var(--accent);
-      color: white;
+      color: #fff;
       border-color: var(--accent);
     }
 
-    .step.active {
-      color: var(--accent);
-    }
+    .step.active { color: var(--accent); }
 
     .card {
       background: var(--card);
@@ -215,9 +210,7 @@
     }
 
     input:focus,
-    textarea:focus {
-      border-color: var(--accent);
-    }
+    textarea:focus { border-color: var(--accent); }
 
     .buttons {
       display: grid;
@@ -247,9 +240,7 @@
       cursor: pointer;
     }
 
-    .primary.enabled:hover {
-      background: var(--accent-dark);
-    }
+    .primary.enabled:hover { background: var(--accent-dark); }
 
     .secondary {
       background: #f7f0ed;
@@ -286,29 +277,17 @@
       line-height: 1.6;
     }
 
-    .hidden {
-      display: none;
-    }
+    .hidden { display: none; }
 
     @media (max-width: 560px) {
-      body {
-        padding: 22px 12px;
-      }
-
-      .card {
-        padding: 24px 18px;
-      }
-
-      h1 {
-        font-size: 30px;
-      }
-
-      .buttons {
-        grid-template-columns: 1fr;
-      }
+      body { padding: 22px 12px; }
+      .card { padding: 24px 18px; }
+      h1 { font-size: 30px; }
+      .buttons { grid-template-columns: 1fr; }
     }
   </style>
 </head>
+
 <body>
   <main class="app">
     <div class="avatar">♡</div>
@@ -462,8 +441,7 @@
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
             state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
-            renderServices();
-            setNextEnabled(true);
+            goToStep(2);
           };
         });
 
@@ -503,13 +481,13 @@
           </div>
         `;
 
-document.querySelectorAll(".option").forEach((el) => {
-  el.onclick = () => {
-    state.selectedDate = el.dataset.value;
-    state.selectedTime = null;
-    goToStep(3);
-  };
-});
+        document.querySelectorAll(".option").forEach((el) => {
+          el.onclick = () => {
+            state.selectedDate = el.dataset.value;
+            state.selectedTime = null;
+            goToStep(3);
+          };
+        });
 
         setNextEnabled(Boolean(state.selectedDate));
       } catch (error) {
@@ -547,8 +525,7 @@ document.querySelectorAll(".option").forEach((el) => {
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
             state.selectedTime = el.dataset.value;
-            renderSlots();
-            setNextEnabled(true);
+            goToStep(4);
           };
         });
 
@@ -630,10 +607,12 @@ document.querySelectorAll(".option").forEach((el) => {
             </div>
           </div>
         `;
+
         document.getElementById("buttons").classList.add("hidden");
       } catch (error) {
         nextBtn.textContent = "Записаться";
         nextBtn.disabled = false;
+        setNextEnabled(true);
         showError("Не удалось создать запись. " + error.message);
       }
     }
