@@ -362,7 +362,6 @@
       selectedDate: null,
       selectedTime: null,
       clientName: "",
-      phone: "",
       notes: ""
     };
 
@@ -570,13 +569,11 @@
 
         <div class="form-grid">
           <input id="clientName" placeholder="Ваше имя" value="${state.clientName}">
-          <input id="phone" placeholder="Телефон" value="${state.phone}">
           <textarea id="notes" placeholder="Комментарий, если нужно">${state.notes}</textarea>
         </div>
       `;
 
       document.getElementById("clientName").oninput = (e) => state.clientName = e.target.value;
-      document.getElementById("phone").oninput = (e) => state.phone = e.target.value;
       document.getElementById("notes").oninput = (e) => state.notes = e.target.value;
     }
 
@@ -584,11 +581,10 @@
       clearError();
 
       const name = document.getElementById("clientName")?.value.trim();
-      const phone = document.getElementById("phone")?.value.trim();
       const notes = document.getElementById("notes")?.value.trim();
 
-      if (!name || !phone) {
-        showError("Введите имя и телефон.");
+      if (!name) {
+        showError("Введите имя.");
         return;
       }
 
@@ -601,7 +597,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             client_name: name,
-            phone,
+            phone: "",
             notes,
             service_id: state.selectedService.service_id,
             date: state.selectedDate,
@@ -620,6 +616,11 @@
               <b>${result.service_name}</b><br>
               ${result.date}, ${result.time}<br><br>
               Номер записи: ${result.booking_id}
+            </div>
+
+            <div class="summary" style="margin-top: 22px; text-align: left;">
+              <b>Чтобы не забыть:</b><br>
+              добавьте запись в календарь или сделайте скриншот этого экрана.
             </div>
           </div>
         `;
