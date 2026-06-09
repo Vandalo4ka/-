@@ -728,6 +728,49 @@ def get_slots(date: str = Query(...)):
 
 
 
+
+@app.get("/api/bookings/search")
+def search_bookings(client_name: str = Query(...)):
+    try:
+        query = str(client_name).strip().lower()
+
+        if len(query) < 2:
+            raise HTTPException(status_code=400, detail="Введите минимум 2 символа имени")
+
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet("bookings")
+        rows = bookings_ws.get_all_records()
+
+        results = []
+
+        for row in rows:
+            row_name = str(row.get("client_name", "")).strip()
+            row_status = str(row.get("status", "")).strip().lower()
+
+            if row_status in ["cancelled", "canceled", "отменено"]:
+                continue
+
+            if query not in row_name.lower():
+                continue
+
+            results.append({
+                "booking_id": str(row.get("booking_id", "")).strip(),
+                "client_name": row_name,
+                "service_name": str(row.get("service_name", "")).strip(),
+                "date": str(row.get("date", "")).strip(),
+                "time": str(row.get("time", "")).strip(),
+                "notes": str(row.get("notes", "")).strip(),
+                "status": str(row.get("status", "")).strip(),
+            })
+
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
 @app.post("/api/bookings/cancel")
 def cancel_booking(request: CancelBookingRequest):
     try:
