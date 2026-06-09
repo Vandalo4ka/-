@@ -288,6 +288,107 @@
       line-height: 1.6;
     }
 
+
+    .date-strip {
+      display: grid;
+      grid-template-columns: 36px 1fr 36px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 20px;
+      font-family: Arial, sans-serif;
+    }
+
+    .month-label {
+      font-family: Arial, sans-serif;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .date-list {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(58px, 1fr);
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .date-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px 6px;
+      text-align: center;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      min-width: 58px;
+      transition: 0.15s ease;
+    }
+
+    .date-card:hover,
+    .date-card.selected {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .date-day {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .date-weekday {
+      font-size: 12px;
+      color: inherit;
+      opacity: 0.85;
+    }
+
+    .calendar-arrow {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      padding: 0;
+      background: #f7f0ed;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .time-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .time-chip {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f7f0ed;
+      padding: 10px 8px;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+
+    .time-chip:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .calendar-note {
+      font-family: Arial, sans-serif;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: -6px;
+      margin-bottom: 16px;
+    }
+
     .hidden { display: none; }
 
     @media (max-width: 560px) {
@@ -338,7 +439,8 @@
       selectedDate: null,
       selectedTime: null,
       clientName: "",
-      notes: ""
+      notes: "",
+      visibleDateStart: 0
     };
 
     const content = document.getElementById("content");
@@ -433,14 +535,7 @@
           "service_id",
           (item) => `<span>${item.name}</span><span>${item.price} €</span>`,
           (item) => `${item.duration_min} минут`
-        ) + `
-          <div class="summary" style="margin-top: -8px; text-align: left;">
-            <b>К маникюру с покрытием:</b><br>
-            снятие, укрепление, ремонт и небольшой дизайн входят в стоимость.<br>
-            Френч и сложные дизайны — +5 €.<br>
-            Наращивание — 5 € за 1 ноготь. Укажите количество ногтей в комментарии.
-          </div>
-        `;
+        );
 
         document.querySelectorAll(".option").forEach((el) => {
           el.onclick = () => {
@@ -454,6 +549,51 @@
         content.innerHTML = "";
         showError("Не удалось загрузить услуги. " + error.message);
       }
+    }
+
+
+    function parseDateISO(dateText) {
+      const parts = String(dateText).split("-");
+      if (parts.length !== 3) return null;
+
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+
+      if (!year || month < 0 || !day) return null;
+
+      return new Date(year, month, day);
+    }
+
+    function formatWeekday(dateText) {
+      const date = parseDateISO(dateText);
+      if (!date) return "";
+
+      const weekdays = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+      return weekdays[date.getDay()];
+    }
+
+    function formatDay(dateText) {
+      const date = parseDateISO(dateText);
+      if (!date) return dateText;
+
+      return String(date.getDate());
+    }
+
+    function formatMonth(dateText) {
+      const date = parseDateISO(dateText);
+      if (!date) return "";
+
+      const months = [
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+      ];
+
+      return months[date.getMonth()];
+    }
+
+    function visibleDates() {
+      return state.dates.slice(state.visibleDateStart, state.visibleDateStart + 7);
     }
 
     async function renderDates() {
@@ -474,23 +614,51 @@
           return;
         }
 
+        if (state.visibleDateStart >= state.dates.length) {
+          state.visibleDateStart = 0;
+        }
+
+        const datesToShow = visibleDates();
+        const monthLabel = datesToShow.length ? formatMonth(datesToShow[0]) : "";
+
         content.innerHTML = `
-          <div class="options">
-            ${state.dates.map((date) => `
-              <div class="option ${date === state.selectedDate ? "selected" : ""}" data-value="${date}">
-                <div class="option-main"><span>${date}</span></div>
-              </div>
-            `).join("")}
+          <div class="month-label">${monthLabel}</div>
+
+          <div class="date-strip">
+            <button class="calendar-arrow" id="prevDates" ${state.visibleDateStart === 0 ? "disabled" : ""}>‹</button>
+
+            <div class="date-list">
+              ${datesToShow.map((date) => `
+                <div class="date-card ${date === state.selectedDate ? "selected" : ""}" data-value="${date}">
+                  <div class="date-day">${formatDay(date)}</div>
+                  <div class="date-weekday">${formatWeekday(date)}</div>
+                </div>
+              `).join("")}
+            </div>
+
+            <button class="calendar-arrow" id="nextDates" ${state.visibleDateStart + 7 >= state.dates.length ? "disabled" : ""}>›</button>
           </div>
+
+          <div class="calendar-note">Выберите дату, затем свободное время.</div>
         `;
 
-        document.querySelectorAll(".option").forEach((el) => {
+        document.querySelectorAll(".date-card").forEach((el) => {
           el.onclick = () => {
             state.selectedDate = el.dataset.value;
             state.selectedTime = null;
             goToStep(3);
           };
         });
+
+        document.getElementById("prevDates").onclick = () => {
+          state.visibleDateStart = Math.max(0, state.visibleDateStart - 7);
+          renderDates();
+        };
+
+        document.getElementById("nextDates").onclick = () => {
+          state.visibleDateStart = Math.min(state.dates.length - 1, state.visibleDateStart + 7);
+          renderDates();
+        };
       } catch (error) {
         content.innerHTML = "";
         showError("Не удалось загрузить даты. " + error.message);
@@ -515,14 +683,19 @@
           return;
         }
 
-        content.innerHTML = renderOptionList(
-          state.slots,
-          state.selectedTime,
-          "time",
-          (item) => `<span>${item.time}</span>`
-        );
+        content.innerHTML = `
+          <div class="summary">
+            <b>Дата:</b> ${state.selectedDate}
+          </div>
 
-        document.querySelectorAll(".option").forEach((el) => {
+          <div class="time-grid">
+            ${state.slots.map((item) => `
+              <div class="time-chip" data-value="${item.time}">${item.time}</div>
+            `).join("")}
+          </div>
+        `;
+
+        document.querySelectorAll(".time-chip").forEach((el) => {
           el.onclick = () => {
             state.selectedTime = el.dataset.value;
             goToStep(4);
