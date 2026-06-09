@@ -3,6 +3,7 @@ import json
 import base64
 import uuid
 import traceback
+import time
 from datetime import datetime
 
 import gspread
@@ -15,8 +16,19 @@ from pydantic import BaseModel
 
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 
-# Only Google Sheets scope. Drive scope is not needed here.
+# Google Sheets scope is enough for reading/writing by spreadsheet ID.
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+# Cache time in seconds.
+# 300 = 5 minutes.
+CACHE_TTL_SECONDS = 300
+
+_cache = {
+    "services": {"time": 0, "data": None},
+    "dates": {"time": 0, "data": None},
+    "slots": {}
+}
+
 
 app = FastAPI(title="Manicure Booking API")
 
@@ -43,6 +55,21 @@ def readable_error(exc: Exception) -> str:
     if message:
         return f"{type(exc).__name__}: {message}"
     return f"{type(exc).__name__}: {repr(exc)}"
+
+
+def cache_is_valid(cache_item: dict) -> bool:
+    return cache_item.get("data") is not None and time.time() - cache_item.get("time", 0) < CACHE_TTL_SECONDS
+
+
+def set_cache(key: str, data):
+    _cache[key]["data"] = data
+    _cache[key]["time"] = time.time()
+
+
+def clear_cache():
+    _cache["services"] = {"time": 0, "data": None}
+    _cache["dates"] = {"time": 0, "data": None}
+    _cache["slots"] = {}
 
 
 def load_credentials_info():
@@ -106,6 +133,7 @@ def health():
         "spreadsheet_id_present": bool(os.getenv("SPREADSHEET_ID")),
         "credentials_b64_present": bool(os.getenv("GOOGLE_CREDENTIALS_B64")),
         "credentials_json_present": bool(os.getenv("GOOGLE_CREDENTIALS_JSON")),
+        "cache_ttl_seconds": CACHE_TTL_SECONDS,
     }
 
 
@@ -139,8 +167,27 @@ def debug_sheets():
         }
 
 
+@app.get("/debug/cache")
+def debug_cache():
+    return {
+        "ttl_seconds": CACHE_TTL_SECONDS,
+        "services_cached": cache_is_valid(_cache["services"]),
+        "dates_cached": cache_is_valid(_cache["dates"]),
+        "slots_cached_dates": list(_cache["slots"].keys()),
+    }
+
+
+@app.post("/debug/cache/clear")
+def debug_cache_clear():
+    clear_cache()
+    return {"status": "cache cleared"}
+
+
 @app.get("/api/services")
 def get_services():
+    if cache_is_valid(_cache["services"]):
+        return _cache["services"]["data"]
+
     records = worksheet_records("services")
 
     services = []
@@ -155,22 +202,32 @@ def get_services():
                 "is_active": is_active,
             })
 
+    set_cache("services", services)
     return services
 
 
 @app.get("/api/dates")
 def get_dates():
+    if cache_is_valid(_cache["dates"]):
+        return _cache["dates"]["data"]
+
     records = worksheet_records("slots")
     dates = sorted({
         str(row.get("date", "")).strip()
         for row in records
         if str(row.get("status", "")).strip().lower() == "free"
     })
+
+    set_cache("dates", dates)
     return dates
 
 
 @app.get("/api/slots")
 def get_slots(date: str = Query(...)):
+    cached = _cache["slots"].get(date)
+    if cached and cache_is_valid(cached):
+        return cached["data"]
+
     records = worksheet_records("slots")
 
     slots = []
@@ -187,7 +244,9 @@ def get_slots(date: str = Query(...)):
                 "status": status,
             })
 
-    return sorted(slots, key=lambda item: item["time"])
+    slots = sorted(slots, key=lambda item: item["time"])
+    _cache["slots"][date] = {"time": time.time(), "data": slots}
+    return slots
 
 
 @app.post("/api/bookings")
@@ -226,6 +285,7 @@ def create_booking(request: BookingRequest):
                 break
 
         if not slot_row_number:
+            clear_cache()
             raise HTTPException(status_code=409, detail="This time is no longer available")
 
         booking_id = "BK-" + uuid.uuid4().hex[:8].upper()
@@ -255,6 +315,9 @@ def create_booking(request: BookingRequest):
             raise RuntimeError("Column status not found in slots sheet")
 
         slots_ws.update_cell(slot_row_number, status_col, "booked")
+
+        # Important: after a booking, clear cache so the booked slot disappears immediately.
+        clear_cache()
 
         return {
             "booking_id": booking_id,
