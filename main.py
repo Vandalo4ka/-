@@ -22,7 +22,7 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
-TIMEZONE = os.getenv("TIMEZONE", "Asia/Tbilisi")
+TIMEZONE = os.getenv("TIMEZONE", "Europe/Madrid")
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CACHE_TTL_SECONDS = 300
@@ -35,7 +35,6 @@ _cache = {
 }
 
 _reminder_thread_started = False
-
 
 app = FastAPI(title="Manicure Booking API")
 
@@ -93,7 +92,7 @@ def load_credentials_info():
         try:
             return json.loads(credentials_json)
         except Exception as exc:
-            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {readable_error(exc)}")
+            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {exc}")
 
     raise RuntimeError("No credentials found")
 
@@ -138,6 +137,75 @@ def update_booking_columns(worksheet, row_number: int, updates: dict):
         col = header_map.get(column_name)
         if col:
             worksheet.update_cell(row_number, col, value)
+
+
+def normalize_date(value):
+    return str(value).strip()
+
+
+def normalize_time(value):
+    value = str(value).strip()
+    if not value:
+        return ""
+
+    # Google Sheets sometimes returns times as "10:00:00".
+    if len(value) >= 5 and value[2] == ":":
+        return value[:5]
+
+    return value
+
+
+def get_schedule_worksheet():
+    spreadsheet = get_spreadsheet()
+    return spreadsheet.worksheet("schedule")
+
+
+def get_schedule_matrix():
+    worksheet = get_schedule_worksheet()
+    values = worksheet.get_all_values()
+
+    if not values or len(values) < 2:
+        raise RuntimeError("Schedule sheet is empty. It must have dates in column A and times in row 1.")
+
+    return worksheet, values
+
+
+def find_schedule_position(values, date_text: str, time_text: str):
+    """
+    schedule format:
+    date | 10:00 | 13:00 | 15:00
+    2025-06-14 | free | booked | blocked
+    2025-06-15 | free | free | blocked
+    """
+    target_date = normalize_date(date_text)
+    target_time = normalize_time(time_text)
+
+    headers = values[0]
+    time_col = None
+
+    for col_index, header in enumerate(headers, start=1):
+        if normalize_time(header) == target_time:
+            time_col = col_index
+            break
+
+    if not time_col:
+        return None, None
+
+    date_row = None
+
+    for row_index, row in enumerate(values[1:], start=2):
+        if not row:
+            continue
+
+        row_date = normalize_date(row[0])
+        if row_date == target_date:
+            date_row = row_index
+            break
+
+    if not date_row:
+        return None, None
+
+    return date_row, time_col
 
 
 def send_telegram_message(chat_id: str, text: str) -> bool:
@@ -280,6 +348,7 @@ def health():
         "telegram_bot_username_present": bool(os.getenv("TELEGRAM_BOT_USERNAME")),
         "timezone": TIMEZONE,
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
+        "schedule_mode": "dates_down_times_across",
     }
 
 
@@ -311,6 +380,20 @@ def debug_sheets():
             "error": readable_error(exc),
             "traceback": traceback.format_exc().splitlines()[-8:],
         }
+
+
+@app.get("/debug/schedule")
+def debug_schedule():
+    try:
+        worksheet, values = get_schedule_matrix()
+        return {
+            "sheet": worksheet.title,
+            "headers": values[0],
+            "rows": len(values) - 1,
+            "expected_format": "date in column A, times in row 1",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.get("/debug/cache")
@@ -415,15 +498,34 @@ def get_dates():
     if cache_is_valid(_cache["dates"]):
         return _cache["dates"]["data"]
 
-    records = worksheet_records("slots")
-    dates = sorted({
-        str(row.get("date", "")).strip()
-        for row in records
-        if str(row.get("status", "")).strip().lower() == "free"
-    })
+    try:
+        worksheet, values = get_schedule_matrix()
+        available_dates = []
 
-    set_cache("dates", dates)
-    return dates
+        for row in values[1:]:
+            if not row:
+                continue
+
+            date_text = normalize_date(row[0])
+            if not date_text:
+                continue
+
+            has_free_slot = False
+
+            for cell in row[1:]:
+                status = str(cell).strip().lower()
+                if status == "free":
+                    has_free_slot = True
+                    break
+
+            if has_free_slot:
+                available_dates.append(date_text)
+
+        set_cache("dates", available_dates)
+        return available_dates
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.get("/api/slots")
@@ -432,25 +534,48 @@ def get_slots(date: str = Query(...)):
     if cached and cache_is_valid(cached):
         return cached["data"]
 
-    records = worksheet_records("slots")
+    try:
+        worksheet, values = get_schedule_matrix()
+        headers = values[0]
 
-    slots = []
-    for row in records:
-        row_date = str(row.get("date", "")).strip()
-        status = str(row.get("status", "")).strip().lower()
-        row_time = str(row.get("time", "") or row.get("time_start", "")).strip()
+        target_row = None
 
-        if row_date == date and status == "free":
-            slots.append({
-                "slot_id": str(row.get("slot_id", "")).strip(),
-                "date": row_date,
-                "time": row_time,
-                "status": status,
-            })
+        for row in values[1:]:
+            if not row:
+                continue
 
-    slots = sorted(slots, key=lambda item: item["time"])
-    _cache["slots"][date] = {"time": time.time(), "data": slots}
-    return slots
+            if normalize_date(row[0]) == normalize_date(date):
+                target_row = row
+                break
+
+        if not target_row:
+            return []
+
+        slots = []
+
+        for col_index, header in enumerate(headers[1:], start=2):
+            time_text = normalize_time(header)
+            if not time_text:
+                continue
+
+            status = ""
+            if len(target_row) >= col_index:
+                status = str(target_row[col_index - 1]).strip().lower()
+
+            if status == "free":
+                slots.append({
+                    "slot_id": f"{date}-{time_text}",
+                    "date": normalize_date(date),
+                    "time": time_text,
+                    "status": "free",
+                })
+
+        slots = sorted(slots, key=lambda item: item["time"])
+        _cache["slots"][date] = {"time": time.time(), "data": slots}
+        return slots
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.post("/api/bookings")
@@ -459,8 +584,8 @@ def create_booking(request: BookingRequest):
         spreadsheet = get_spreadsheet()
 
         services_ws = spreadsheet.worksheet("services")
-        slots_ws = spreadsheet.worksheet("slots")
         bookings_ws = spreadsheet.worksheet("bookings")
+        schedule_ws, schedule_values = get_schedule_matrix()
 
         services = services_ws.get_all_records()
         service = next(
@@ -475,20 +600,20 @@ def create_booking(request: BookingRequest):
         if not service:
             raise HTTPException(status_code=404, detail="Service not found")
 
-        slots = slots_ws.get_all_records()
-        slot_row_number = None
+        schedule_row, schedule_col = find_schedule_position(
+            schedule_values,
+            request.date,
+            request.time,
+        )
 
-        for index, row in enumerate(slots, start=2):
-            row_time = str(row.get("time", "") or row.get("time_start", "")).strip()
-            same_date = str(row.get("date", "")).strip() == request.date
-            same_time = row_time == request.time
-            is_free = str(row.get("status", "")).strip().lower() == "free"
+        if not schedule_row or not schedule_col:
+            clear_cache()
+            raise HTTPException(status_code=409, detail="This time is no longer available")
 
-            if same_date and same_time and is_free:
-                slot_row_number = index
-                break
+        current_status = schedule_ws.cell(schedule_row, schedule_col).value
+        current_status = str(current_status or "").strip().lower()
 
-        if not slot_row_number:
+        if current_status != "free":
             clear_cache()
             raise HTTPException(status_code=409, detail="This time is no longer available")
 
@@ -510,17 +635,9 @@ def create_booking(request: BookingRequest):
             "no",
         ])
 
-        headers = slots_ws.row_values(1)
-        status_col = None
-        for i, header in enumerate(headers, start=1):
-            if str(header).strip() == "status":
-                status_col = i
-                break
+        # After booking, the calendar cell changes automatically from free to booked.
+        schedule_ws.update_cell(schedule_row, schedule_col, "booked")
 
-        if not status_col:
-            raise RuntimeError("Column status not found in slots sheet")
-
-        slots_ws.update_cell(slot_row_number, status_col, "booked")
         clear_cache()
 
         message = (
