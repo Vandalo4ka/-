@@ -899,8 +899,10 @@ def create_booking(request: BookingRequest):
             "no",
         ])
 
-        # After booking, the calendar cell changes automatically from free to booked.
-        schedule_ws.update_cell(schedule_row, schedule_col, "booked")
+        # After booking, the calendar cell shows client name and service for the master.
+        # Empty/free cells are available. Any other text is treated as unavailable for clients.
+        schedule_cell_text = f"{request.client_name} — {service.get('name', '')}"
+        schedule_ws.update_cell(schedule_row, schedule_col, schedule_cell_text)
 
         clear_cache()
 
