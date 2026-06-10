@@ -188,6 +188,48 @@ def normalize_time(value):
     return value
 
 
+def normalize_price(value):
+    """
+    Google Sheets with comma decimals can sometimes return 20,00 as 2000.
+    This converts:
+    2000 -> 20
+    4000 -> 40
+    500 -> 5
+    "20,00" -> 20
+    "40.00" -> 40
+    """
+    if value is None:
+        return ""
+
+    raw = str(value).strip().replace("€", "").replace(" ", "")
+
+    if raw == "":
+        return ""
+
+    # If value is already a number and looks like a cents-style value.
+    if isinstance(value, (int, float)):
+        number = float(value)
+
+        if number >= 100 and number % 100 == 0:
+            number = number / 100
+
+        return str(int(number)) if number.is_integer() else str(number).rstrip("0").rstrip(".")
+
+    # Handle comma decimal values from European locale.
+    normalized = raw.replace(",", ".")
+
+    try:
+        number = float(normalized)
+
+        # Handle accidental 2000 from 20,00.
+        if "," not in raw and "." not in raw and number >= 100 and number % 100 == 0:
+            number = number / 100
+
+        return str(int(number)) if number.is_integer() else str(number).rstrip("0").rstrip(".")
+    except Exception:
+        return raw
+
+
 def parse_date(date_text: str) -> datetime:
     try:
         return datetime.strptime(normalize_date(date_text), "%Y-%m-%d")
@@ -889,7 +931,7 @@ def get_services():
                 "service_id": str(row.get("service_id", "")).strip(),
                 "name": str(row.get("name", "")).strip(),
                 "duration_min": str(row.get("duration_min", "")).strip(),
-                "price": str(row.get("price", "")).strip(),
+                "price": normalize_price(row.get("price", "")),
                 "is_active": is_active,
             })
 
@@ -1168,7 +1210,7 @@ def create_booking(request: BookingRequest):
         ])
 
         service_name = str(service.get("name", ""))
-        service_price = str(service.get("price", ""))
+        service_price = normalize_price(service.get("price", ""))
 
         schedule_cell_text = (
             f"{request.client_name}\n"
