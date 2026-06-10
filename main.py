@@ -26,8 +26,37 @@ TIMEZONE = os.getenv("TIMEZONE", "Europe/Madrid")
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CACHE_TTL_SECONDS = 60
-SCHEDULE_PREFIX = "schedule_"
 REMINDER_CHECK_SECONDS = 600
+
+DEFAULT_TIME_SLOTS = [
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+]
+
+RU_MONTHS_NOMINATIVE = [
+    "январь",
+    "февраль",
+    "март",
+    "апрель",
+    "май",
+    "июнь",
+    "июль",
+    "август",
+    "сентябрь",
+    "октябрь",
+    "ноябрь",
+    "декабрь",
+]
+
+RU_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 _cache = {
     "services": {"time": 0, "data": None},
@@ -97,7 +126,7 @@ def load_credentials_info():
         try:
             return json.loads(credentials_json)
         except Exception as exc:
-            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {exc}")
+            raise RuntimeError(f"Invalid GOOGLE_CREDENTIALS_JSON: {readable_error(exc)}")
 
     raise RuntimeError("No credentials found")
 
@@ -153,68 +182,202 @@ def normalize_time(value):
     if not value:
         return ""
 
-    # Google Sheets sometimes returns times as "10:00:00".
     if len(value) >= 5 and value[2] == ":":
         return value[:5]
 
     return value
 
 
-def sheet_name_for_date(date_text: str) -> str:
-    date_text = normalize_date(date_text)
+def parse_date(date_text: str) -> datetime:
     try:
-        dt = datetime.strptime(date_text, "%Y-%m-%d")
-        return f"{SCHEDULE_PREFIX}{dt.year}_{dt.month:02d}"
+        return datetime.strptime(normalize_date(date_text), "%Y-%m-%d")
     except ValueError:
         raise RuntimeError("Date must be in YYYY-MM-DD format")
 
 
-def is_schedule_sheet_name(name: str) -> bool:
-    if not name.startswith(SCHEDULE_PREFIX):
-        return False
-    suffix = name.replace(SCHEDULE_PREFIX, "", 1)
-    parts = suffix.split("_")
+def is_weekend(date_text: str) -> bool:
+    dt = parse_date(date_text)
+    return dt.weekday() >= 5
+
+
+def sheet_name_for_date(date_text: str) -> str:
+    dt = parse_date(date_text)
+    return f"{RU_MONTHS_NOMINATIVE[dt.month - 1]} {dt.year}"
+
+
+def is_ru_month_sheet_name(name: str) -> bool:
+    parts = str(name).strip().casefold().split()
+
     if len(parts) != 2:
         return False
-    year, month = parts
-    return year.isdigit() and month.isdigit() and len(year) == 4 and len(month) == 2
+
+    month_name, year = parts
+
+    return month_name in RU_MONTHS_NOMINATIVE and year.isdigit() and len(year) == 4
+
+
+def add_months(year: int, month: int, offset: int):
+    month_index = (year * 12 + (month - 1)) + offset
+    new_year = month_index // 12
+    new_month = month_index % 12 + 1
+    return new_year, new_month
+
+
+def days_in_month(year: int, month: int) -> int:
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
+    else:
+        next_month = datetime(year, month + 1, 1)
+
+    this_month = datetime(year, month, 1)
+    return (next_month - this_month).days
+
+
+def month_sheet_name(year: int, month: int) -> str:
+    return f"{RU_MONTHS_NOMINATIVE[month - 1]} {year}"
+
+
+def create_schedule_month_if_missing(spreadsheet, year: int, month: int):
+    sheet_name = month_sheet_name(year, month)
+
+    try:
+        return spreadsheet.worksheet(sheet_name)
+    except Exception:
+        pass
+
+    rows_data = [["date", "day"] + DEFAULT_TIME_SLOTS]
+
+    for day in range(1, days_in_month(year, month) + 1):
+        dt = datetime(year, month, day)
+
+        # Do not create Saturday/Sunday rows at all.
+        if dt.weekday() >= 5:
+            continue
+
+        iso_date = dt.strftime("%Y-%m-%d")
+        weekday = RU_WEEKDAYS[dt.weekday()]
+        rows_data.append([iso_date, weekday] + [""] * len(DEFAULT_TIME_SLOTS))
+
+    worksheet = spreadsheet.add_worksheet(
+        title=sheet_name,
+        rows=max(len(rows_data), 2),
+        cols=len(DEFAULT_TIME_SLOTS) + 2,
+    )
+
+    worksheet.update("A1", rows_data)
+
+    try:
+        format_schedule_worksheet(worksheet, len(rows_data), len(DEFAULT_TIME_SLOTS) + 2)
+    except Exception:
+        pass
+
+    return worksheet
+
+
+def format_schedule_worksheet(worksheet, row_count: int, col_count: int):
+    worksheet.freeze(rows=1, cols=2)
+
+    worksheet.format(
+        f"A1:{column_letter(col_count)}1",
+        {
+            "backgroundColor": {"red": 0.93, "green": 0.93, "blue": 0.93},
+            "horizontalAlignment": "CENTER",
+            "verticalAlignment": "MIDDLE",
+            "textFormat": {"bold": True},
+        },
+    )
+
+    if row_count >= 2:
+        worksheet.format(
+            f"A2:B{row_count}",
+            {
+                "backgroundColor": {"red": 0.84, "green": 0.91, "blue": 0.92},
+                "horizontalAlignment": "CENTER",
+                "verticalAlignment": "MIDDLE",
+            },
+        )
+
+        worksheet.format(
+            f"C2:{column_letter(col_count)}{row_count}",
+            {
+                "horizontalAlignment": "CENTER",
+                "verticalAlignment": "MIDDLE",
+                "wrapStrategy": "WRAP",
+            },
+        )
+
+
+def column_letter(col_number: int) -> str:
+    result = ""
+
+    while col_number:
+        col_number, remainder = divmod(col_number - 1, 26)
+        result = chr(65 + remainder) + result
+
+    return result
+
+
+def ensure_schedule_months_ahead(months_ahead: int = 3):
+    spreadsheet = get_spreadsheet()
+    today = datetime.now(ZoneInfo(TIMEZONE))
+
+    for offset in range(months_ahead):
+        year, month = add_months(today.year, today.month, offset)
+        create_schedule_month_if_missing(spreadsheet, year, month)
 
 
 def get_schedule_worksheets():
+    ensure_schedule_months_ahead(3)
+
     spreadsheet = get_spreadsheet()
-    worksheets = [ws for ws in spreadsheet.worksheets() if is_schedule_sheet_name(ws.title)]
-    return sorted(worksheets, key=lambda ws: ws.title)
+    worksheets = [
+        ws for ws in spreadsheet.worksheets()
+        if is_ru_month_sheet_name(ws.title)
+    ]
+
+    def sort_key(ws):
+        parts = ws.title.casefold().split()
+        month_num = RU_MONTHS_NOMINATIVE.index(parts[0]) + 1
+        year = int(parts[1])
+        return year, month_num
+
+    return sorted(worksheets, key=sort_key)
 
 
 def get_schedule_worksheet_for_date(date_text: str):
     spreadsheet = get_spreadsheet()
+    dt = parse_date(date_text)
+
+    # Weekend dates should never be bookable or auto-created as rows.
+    if dt.weekday() >= 5:
+        raise RuntimeError("Weekend dates are not available")
+
     sheet_name = sheet_name_for_date(date_text)
+
     try:
         return spreadsheet.worksheet(sheet_name)
     except Exception:
-        raise RuntimeError(f"Schedule sheet not found: {sheet_name}")
+        return create_schedule_month_if_missing(spreadsheet, dt.year, dt.month)
 
 
 def get_schedule_matrix_for_date(date_text: str):
     worksheet = get_schedule_worksheet_for_date(date_text)
     values = worksheet.get_all_values()
+
     if not values or len(values) < 2:
         raise RuntimeError(f"{worksheet.title} is empty. It must have dates in column A and times in row 1.")
+
     return worksheet, values
 
 
 def find_schedule_position(values, date_text: str, time_text: str):
-    """
-    Monthly schedule format:
-    date | day | 09:00 | 10:00 | 11:00
-    2025-06-01 | Sun | empty/free | blocked | client — service
-    """
     target_date = normalize_date(date_text)
     target_time = normalize_time(time_text)
+
     headers = values[0]
     time_col = None
 
-    # Skip date and day columns. Times start from column C.
+    # Skip date and day columns: start from column C.
     for col_index, header in enumerate(headers[2:], start=3):
         if normalize_time(header) == target_time:
             time_col = col_index
@@ -224,10 +387,13 @@ def find_schedule_position(values, date_text: str, time_text: str):
         return None, None
 
     date_row = None
+
     for row_index, row in enumerate(values[1:], start=2):
         if not row:
             continue
-        if normalize_date(row[0]) == target_date:
+
+        row_date = normalize_date(row[0])
+        if row_date == target_date:
             date_row = row_index
             break
 
@@ -322,7 +488,7 @@ def process_due_reminders():
         if reminder_requested not in ["yes", "true", "1", "да"]:
             continue
 
-        if reminder_sent in ["yes", "true", "1", "да"]:
+        if reminder_sent in ["yes", "true", "1", "да", "cancelled"]:
             continue
 
         if not chat_id:
@@ -348,6 +514,25 @@ def process_due_reminders():
 
             if send_telegram_message(chat_id, text):
                 update_booking_columns(bookings_ws, row_number, {"reminder_sent": "yes"})
+
+
+def find_booking_by_id(bookings_ws, booking_id: str):
+    rows = bookings_ws.get_all_records()
+
+    for row_number, row in enumerate(rows, start=2):
+        current_booking_id = str(row.get("booking_id", "")).strip()
+        if current_booking_id == str(booking_id).strip():
+            return row_number, row
+
+    return None, None
+
+
+def free_schedule_cell_for_booking(date_text: str, time_text: str):
+    schedule_ws, schedule_values = get_schedule_matrix_for_date(date_text)
+    schedule_row, schedule_col = find_schedule_position(schedule_values, date_text, time_text)
+
+    if schedule_row and schedule_col:
+        schedule_ws.update_cell(schedule_row, schedule_col, "")
 
 
 @app.on_event("startup")
@@ -428,9 +613,6 @@ def cancel_page(booking_id: str = Query(...)):
           margin-top: 18px;
           line-height: 1.6;
         }}
-        a {{
-          color: #b86d7f;
-        }}
       </style>
     </head>
     <body>
@@ -502,8 +684,8 @@ def health():
         "telegram_bot_username_present": bool(os.getenv("TELEGRAM_BOT_USERNAME")),
         "timezone": TIMEZONE,
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
-        "schedule_mode": "monthly_sheets",
-        "schedule_prefix": SCHEDULE_PREFIX,
+        "schedule_mode": "russian_month_names_weekdays_only",
+        "auto_create_months_ahead": 3,
     }
 
 
@@ -545,6 +727,7 @@ def debug_schedule():
             "schedule_sheets": [ws.title for ws in worksheets],
             "count": len(worksheets),
             "expected_format": "date | day | time columns",
+            "weekends": "not created and not shown",
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=readable_error(exc))
@@ -624,26 +807,6 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
 
-
-def find_booking_by_id(bookings_ws, booking_id: str):
-    rows = bookings_ws.get_all_records()
-
-    for row_number, row in enumerate(rows, start=2):
-        current_booking_id = str(row.get("booking_id", "")).strip()
-        if current_booking_id == str(booking_id).strip():
-            return row_number, row
-
-    return None, None
-
-
-def free_schedule_cell_for_booking(date_text: str, time_text: str):
-    schedule_ws, schedule_values = get_schedule_matrix_for_date(date_text)
-    schedule_row, schedule_col = find_schedule_position(schedule_values, date_text, time_text)
-    if schedule_row and schedule_col:
-        # Blank cell means free and looks cleaner for the master.
-        schedule_ws.update_cell(schedule_row, schedule_col, "")
-
-
 @app.get("/api/services")
 def get_services():
     if cache_is_valid(_cache["services"]):
@@ -677,18 +840,29 @@ def get_dates():
 
         for worksheet in get_schedule_worksheets():
             values = worksheet.get_all_values()
+
             if not values or len(values) < 2:
                 continue
 
             for row in values[1:]:
                 if not row:
                     continue
+
                 date_text = normalize_date(row[0])
                 if not date_text:
                     continue
 
-                # Skip date and day columns. Empty/free cells are available.
-                has_free_slot = any(str(cell).strip().casefold() in ["free", ""] for cell in row[2:])
+                if is_weekend(date_text):
+                    continue
+
+                has_free_slot = False
+
+                for cell in row[2:]:
+                    status = str(cell).strip().casefold()
+                    if status in ["free", ""]:
+                        has_free_slot = True
+                        break
+
                 if has_free_slot:
                     available_dates.append(date_text)
 
@@ -707,12 +881,19 @@ def get_slots(date: str = Query(...)):
         return cached["data"]
 
     try:
+        if is_weekend(date):
+            return []
+
         worksheet, values = get_schedule_matrix_for_date(date)
         headers = values[0]
+
         target_row = None
 
         for row in values[1:]:
-            if row and normalize_date(row[0]) == normalize_date(date):
+            if not row:
+                continue
+
+            if normalize_date(row[0]) == normalize_date(date):
                 target_row = row
                 break
 
@@ -720,7 +901,7 @@ def get_slots(date: str = Query(...)):
             return []
 
         slots = []
-        # Skip date and day columns. Times start from column C.
+
         for col_index, header in enumerate(headers[2:], start=3):
             time_text = normalize_time(header)
             if not time_text:
@@ -798,7 +979,6 @@ def cancel_booking(request: CancelBookingRequest):
 
         spreadsheet = get_spreadsheet()
         bookings_ws = spreadsheet.worksheet("bookings")
-        schedule_ws = spreadsheet.worksheet("schedule")
 
         row_number, booking = find_booking_by_id(bookings_ws, booking_id)
 
@@ -827,11 +1007,11 @@ def cancel_booking(request: CancelBookingRequest):
         clear_cache()
 
         message = (
-            "Запись отменена\\n\\n"
-            f"Клиент: {booking.get('client_name', '')}\\n"
-            f"Услуга: {booking.get('service_name', '')}\\n"
-            f"Дата: {booking.get('date', '')}\\n"
-            f"Время: {booking.get('time', '')}\\n"
+            "Запись отменена\n\n"
+            f"Клиент: {booking.get('client_name', '')}\n"
+            f"Услуга: {booking.get('service_name', '')}\n"
+            f"Дата: {booking.get('date', '')}\n"
+            f"Время: {booking.get('time', '')}\n"
             f"Номер записи: {booking_id}"
         )
         send_master_notification(message)
@@ -840,9 +1020,9 @@ def cancel_booking(request: CancelBookingRequest):
         if client_chat_id:
             send_telegram_message(
                 client_chat_id,
-                "Ваша запись отменена.\\n\\n"
-                f"Услуга: {booking.get('service_name', '')}\\n"
-                f"Дата: {booking.get('date', '')}\\n"
+                "Ваша запись отменена.\n\n"
+                f"Услуга: {booking.get('service_name', '')}\n"
+                f"Дата: {booking.get('date', '')}\n"
                 f"Время: {booking.get('time', '')}"
             )
 
@@ -861,6 +1041,9 @@ def cancel_booking(request: CancelBookingRequest):
 @app.post("/api/bookings")
 def create_booking(request: BookingRequest):
     try:
+        if is_weekend(request.date):
+            raise HTTPException(status_code=409, detail="Weekend dates are not available")
+
         spreadsheet = get_spreadsheet()
 
         services_ws = spreadsheet.worksheet("services")
@@ -915,8 +1098,6 @@ def create_booking(request: BookingRequest):
             "no",
         ])
 
-        # After booking, the calendar cell shows client name and service for the master.
-        # Empty/free cells are available. Any other text is treated as unavailable for clients.
         schedule_cell_text = f"{request.client_name} — {service.get('name', '')}"
         schedule_ws.update_cell(schedule_row, schedule_col, schedule_cell_text)
 
