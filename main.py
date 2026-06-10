@@ -170,6 +170,32 @@ def parse_date(date_text: str) -> datetime:
         raise RuntimeError("Date must be in YYYY-MM-DD format")
 
 
+def current_local_datetime():
+    return datetime.now(ZoneInfo(TIMEZONE))
+
+
+def is_past_date(date_text: str) -> bool:
+    date_only = parse_date(date_text).date()
+    today = current_local_datetime().date()
+    return date_only < today
+
+
+def is_past_or_current_time_for_today(date_text: str, time_text: str) -> bool:
+    date_only = parse_date(date_text).date()
+    now = current_local_datetime()
+
+    if date_only != now.date():
+        return False
+
+    try:
+        slot_time = datetime.strptime(normalize_time(time_text), "%H:%M").time()
+    except ValueError:
+        return True
+
+    # Do not offer times that have already started or are exactly now.
+    return slot_time <= now.time()
+
+
 def is_weekend(date_text: str) -> bool:
     return parse_date(date_text).weekday() >= 5
 
@@ -570,6 +596,8 @@ def health():
         "timezone": TIMEZONE,
         "cache_ttl_seconds": CACHE_TTL_SECONDS,
         "schedule_mode": "calendar_grid",
+        "past_dates_hidden": True,
+        "past_times_today_hidden": True,
     }
 
 
@@ -665,9 +693,16 @@ def get_dates():
             for row in values[1:]:
                 for cell in row[:5]:
                     date_text, time_lines = parse_day_cell(cell)
-                    if not date_text or is_weekend(date_text):
+                    if not date_text or is_weekend(date_text) or is_past_date(date_text):
                         continue
-                    if any(is_time_free(item["status"]) for item in time_lines):
+
+                    has_available_future_time = any(
+                        is_time_free(item["status"])
+                        and not is_past_or_current_time_for_today(date_text, item["time"])
+                        for item in time_lines
+                    )
+
+                    if has_available_future_time:
                         available_dates.append(date_text)
         available_dates = sorted(set(available_dates))
         set_cache("dates", available_dates)
@@ -690,7 +725,17 @@ def get_slots(date: str = Query(...)):
         if not row_index or not col_index:
             return []
         _, time_lines = parse_day_cell(cell_text)
-        slots = [{"slot_id": f"{date}-{item['time']}", "date": normalize_date(date), "time": item["time"], "status": "free"} for item in time_lines if is_time_free(item["status"])]
+        slots = [
+            {
+                "slot_id": f"{date}-{item['time']}",
+                "date": normalize_date(date),
+                "time": item["time"],
+                "status": "free",
+            }
+            for item in time_lines
+            if is_time_free(item["status"])
+            and not is_past_or_current_time_for_today(date, item["time"])
+        ]
         slots = sorted(slots, key=lambda item: item["time"])
         _cache["slots"][date] = {"time": time.time(), "data": slots}
         return slots
@@ -764,6 +809,9 @@ def create_booking(request: BookingRequest):
     try:
         if is_weekend(request.date):
             raise HTTPException(status_code=409, detail="Weekend dates are not available")
+
+        if is_past_date(request.date) or is_past_or_current_time_for_today(request.date, request.time):
+            raise HTTPException(status_code=409, detail="This time is no longer available")
 
         spreadsheet = get_spreadsheet()
         services_ws = spreadsheet.worksheet("services")
