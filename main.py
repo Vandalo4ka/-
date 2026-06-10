@@ -811,11 +811,11 @@ def cancel_booking(request: CancelBookingRequest):
         clear_cache()
 
         message = (
-            "Запись отменена\\n\\n"
-            f"Клиент: {booking.get('client_name', '')}\\n"
-            f"Услуга: {booking.get('service_name', '')}\\n"
-            f"Дата: {booking.get('date', '')}\\n"
-            f"Время: {booking.get('time', '')}\\n"
+            "Запись отменена\n\n"
+            f"Клиент: {booking.get('client_name', '')}\n"
+            f"Услуга: {booking.get('service_name', '')}\n"
+            f"Дата: {booking.get('date', '')}\n"
+            f"Время: {booking.get('time', '')}\n"
             f"Номер записи: {booking_id}"
         )
         send_master_notification(message)
@@ -824,9 +824,9 @@ def cancel_booking(request: CancelBookingRequest):
         if client_chat_id:
             send_telegram_message(
                 client_chat_id,
-                "Ваша запись отменена.\\n\\n"
-                f"Услуга: {booking.get('service_name', '')}\\n"
-                f"Дата: {booking.get('date', '')}\\n"
+                "Ваша запись отменена.\n\n"
+                f"Услуга: {booking.get('service_name', '')}\n"
+                f"Дата: {booking.get('date', '')}\n"
                 f"Время: {booking.get('time', '')}"
             )
 
