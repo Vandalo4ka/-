@@ -535,6 +535,73 @@ def free_schedule_cell_for_booking(date_text: str, time_text: str):
         schedule_ws.update_cell(schedule_row, schedule_col, "")
 
 
+
+def get_or_create_clients_worksheet(spreadsheet):
+    headers = [
+        "created_at",
+        "booking_id",
+        "client_name",
+        "service_name",
+        "date",
+        "time",
+        "price",
+        "notes",
+        "status",
+    ]
+
+    try:
+        worksheet = spreadsheet.worksheet("clients")
+    except Exception:
+        worksheet = spreadsheet.add_worksheet(title="clients", rows=1000, cols=len(headers))
+        worksheet.update("A1", [headers])
+
+    existing_headers = worksheet.row_values(1)
+    if not existing_headers:
+        worksheet.update("A1", [headers])
+
+    return worksheet
+
+
+def append_client_visit(
+    spreadsheet,
+    created_at: str,
+    booking_id: str,
+    client_name: str,
+    service_name: str,
+    date_text: str,
+    time_text: str,
+    price,
+    notes: str,
+):
+    clients_ws = get_or_create_clients_worksheet(spreadsheet)
+
+    clients_ws.append_row([
+        created_at,
+        booking_id,
+        client_name,
+        service_name,
+        date_text,
+        time_text,
+        price,
+        notes or "",
+        "new",
+    ])
+
+
+def update_client_visit_status(spreadsheet, booking_id: str, status: str):
+    try:
+        clients_ws = get_or_create_clients_worksheet(spreadsheet)
+        rows = clients_ws.get_all_records()
+
+        for row_number, row in enumerate(rows, start=2):
+            current_booking_id = str(row.get("booking_id", "")).strip()
+            if current_booking_id == str(booking_id).strip():
+                update_booking_columns(clients_ws, row_number, {"status": status})
+                return
+    except Exception:
+        pass
+
+
 @app.on_event("startup")
 def startup_event():
     global _reminder_thread_started
@@ -1004,6 +1071,8 @@ def cancel_booking(request: CancelBookingRequest):
             str(booking.get("time", "")),
         )
 
+        update_client_visit_status(spreadsheet, booking_id, "cancelled")
+
         clear_cache()
 
         message = (
@@ -1098,8 +1167,27 @@ def create_booking(request: BookingRequest):
             "no",
         ])
 
-        schedule_cell_text = f"{request.client_name} — {service.get('name', '')}"
+        service_name = str(service.get("name", ""))
+        service_price = str(service.get("price", ""))
+
+        schedule_cell_text = (
+            f"{request.client_name}\n"
+            f"{service_name}\n"
+            f"{service_price} €"
+        )
         schedule_ws.update_cell(schedule_row, schedule_col, schedule_cell_text)
+
+        append_client_visit(
+            spreadsheet=spreadsheet,
+            created_at=created_at,
+            booking_id=booking_id,
+            client_name=request.client_name,
+            service_name=service_name,
+            date_text=request.date,
+            time_text=request.time,
+            price=service_price,
+            notes=request.notes or "",
+        )
 
         clear_cache()
 
