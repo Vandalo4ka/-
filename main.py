@@ -102,6 +102,26 @@ class AdminUpdateServicePriceRequest(BaseModel):
     price: str
 
 
+class AdminUpdateServiceRequest(BaseModel):
+    service_id: str
+    name: str
+    duration_min: str
+    price: str
+    description: str | None = ""
+    is_active: str | None = "TRUE"
+
+
+class AdminCreateServiceRequest(BaseModel):
+    name: str
+    duration_min: str
+    price: str
+    description: str | None = ""
+
+
+class AdminDeleteServiceRequest(BaseModel):
+    service_id: str
+
+
 def check_admin_key(key: str | None = None):
     expected = ADMIN_KEY.strip()
     if not expected:
@@ -1026,7 +1046,38 @@ def append_admin_created_client_visit(
 
 def get_services_worksheet_for_admin():
     spreadsheet = get_spreadsheet()
-    return spreadsheet.worksheet("services")
+    worksheet = spreadsheet.worksheet("services")
+    ensure_services_headers_for_admin(worksheet)
+    return worksheet
+
+
+def ensure_services_headers_for_admin(worksheet):
+    required_headers = ["service_id", "name", "duration_min", "price", "is_active", "description"]
+    headers = worksheet.row_values(1)
+
+    if not headers:
+        worksheet.update("A1", [required_headers])
+        return
+
+    existing = [str(h or "").strip() for h in headers]
+
+    for header in required_headers:
+        if header not in existing:
+            worksheet.update_cell(1, len(existing) + 1, header)
+            existing.append(header)
+
+
+def next_service_id_for_admin(services_ws):
+    rows = services_ws.get_all_records()
+    max_num = 0
+
+    for row in rows:
+        raw = str(row.get("service_id", "")).strip()
+        digits = "".join(ch for ch in raw if ch.isdigit())
+        if digits:
+            max_num = max(max_num, int(digits))
+
+    return f"SVC-{max_num + 1:02d}"
 
 
 def find_service_row_for_admin(services_ws, service_id: str = "", name: str = ""):
@@ -1069,9 +1120,150 @@ def admin_services(key: str | None = Query(default=None)):
                 "duration_min": str(row.get("duration_min", "")).strip(),
                 "price": normalize_admin_price(row.get("price", "")),
                 "is_active": is_active,
+                "description": str(row.get("description", "")).strip(),
             })
 
         return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/services/update")
+def admin_update_service(request: AdminUpdateServiceRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        service_id = str(request.service_id or "").strip()
+        name = str(request.name or "").strip()
+        duration_min = str(request.duration_min or "").strip()
+        price = normalize_admin_price(request.price)
+        description = str(request.description or "").strip()
+        is_active = str(request.is_active or "TRUE").strip() or "TRUE"
+
+        if not service_id:
+            raise HTTPException(status_code=400, detail="Service ID is required")
+        if not name:
+            raise HTTPException(status_code=400, detail="Service name is required")
+        if not duration_min:
+            raise HTTPException(status_code=400, detail="Duration is required")
+        if price == "":
+            raise HTTPException(status_code=400, detail="Price is required")
+
+        services_ws = get_services_worksheet_for_admin()
+        row_number, service_row = find_service_row_for_admin(services_ws, service_id=service_id)
+
+        if not row_number:
+            raise HTTPException(status_code=404, detail="Service not found")
+
+        update_columns_by_header(services_ws, row_number, {
+            "name": name,
+            "duration_min": duration_min,
+            "price": price,
+            "description": description,
+            "is_active": is_active,
+        })
+
+        clear_cache()
+
+        return {
+            "status": "updated",
+            "service_id": service_id,
+            "name": name,
+            "duration_min": duration_min,
+            "price": price,
+            "description": description,
+            "is_active": is_active,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/services/create")
+def admin_create_service(request: AdminCreateServiceRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        name = str(request.name or "").strip()
+        duration_min = str(request.duration_min or "").strip()
+        price = normalize_admin_price(request.price)
+        description = str(request.description or "").strip()
+
+        if not name:
+            raise HTTPException(status_code=400, detail="Service name is required")
+        if not duration_min:
+            raise HTTPException(status_code=400, detail="Duration is required")
+        if price == "":
+            raise HTTPException(status_code=400, detail="Price is required")
+
+        services_ws = get_services_worksheet_for_admin()
+        service_id = next_service_id_for_admin(services_ws)
+
+        headers = get_header_map(services_ws)
+        row = [""] * max(headers.values())
+
+        values = {
+            "service_id": service_id,
+            "name": name,
+            "duration_min": duration_min,
+            "price": price,
+            "is_active": "TRUE",
+            "description": description,
+        }
+
+        for column_name, value in values.items():
+            column_index = headers.get(column_name)
+            if column_index:
+                row[column_index - 1] = value
+
+        services_ws.append_row(row)
+        clear_cache()
+
+        return {
+            "status": "created",
+            "service_id": service_id,
+            "name": name,
+            "duration_min": duration_min,
+            "price": price,
+            "description": description,
+            "is_active": "TRUE",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/services/delete")
+def admin_delete_service(request: AdminDeleteServiceRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        service_id = str(request.service_id or "").strip()
+        if not service_id:
+            raise HTTPException(status_code=400, detail="Service ID is required")
+
+        services_ws = get_services_worksheet_for_admin()
+        row_number, service_row = find_service_row_for_admin(services_ws, service_id=service_id)
+
+        if not row_number:
+            raise HTTPException(status_code=404, detail="Service not found")
+
+        # Soft delete: hide from client site, keep the row.
+        update_columns_by_header(services_ws, row_number, {"is_active": "FALSE"})
+        clear_cache()
+
+        return {
+            "status": "deleted",
+            "service_id": service_id,
+            "name": str(service_row.get("name", "")).strip(),
+        }
+
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=readable_error(exc))
 
@@ -1676,6 +1868,7 @@ def get_services():
                 "name": str(row.get("name", "")).strip(),
                 "duration_min": str(row.get("duration_min", "")).strip(),
                 "price": normalize_price(row.get("price", "")),
+                "description": str(row.get("description", "")).strip(),
                 "is_active": is_active,
             })
 
