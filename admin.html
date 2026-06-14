@@ -21,7 +21,7 @@
     .date-btn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:14px 10px;cursor:pointer;text-align:left;min-height:96px;display:flex;flex-direction:column;justify-content:space-between}
     .date-btn strong{display:block;font-size:24px;color:#5b4339}
     .date-btn span{display:block;font-size:13px;color:#8a6b5f;margin-top:4px}
-    .date-btn.active{background:#fef4ef;border-color:var(--peach)} .date-btn .mini{font-size:12px;color:var(--muted);line-height:1.35;margin-top:8px}.week-nav{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px}.week-title{font-weight:700;color:#5b4339}
+    .date-btn.active{background:#fef4ef;border-color:var(--peach)} .date-btn:hover{border-color:var(--peach);background:#fffaf6} .date-btn .mini{font-size:12px;color:var(--muted);line-height:1.35;margin-top:8px}.week-nav{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px}.week-title{font-weight:700;color:#5b4339}
     .toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 18px}
     button{font-family:inherit}
     .btn{border:none;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}
@@ -168,14 +168,14 @@ function renderDates(){
   weekTitle.textContent = monthDay(first) + ' — ' + monthDay(last);
 
   dateList.innerHTML = dates.map(date => {
-    const disabled = !available.has(date);
+    const hasSlots = available.has(date);
     return `
-      <button class="date-btn ${state.selectedDate===date?'active':''}" data-date="${date}" ${disabled ? 'disabled' : ''}>
+      <button class="date-btn ${state.selectedDate===date?'active':''}" data-date="${date}">
         <div>
           <strong>${dayNum(date)}</strong>
           <span>${dayLabel(date)}</span>
         </div>
-        <div class="mini">${disabled ? 'нет слотов' : 'записи / слоты'}</div>
+        <div class="mini">${hasSlots ? 'есть слоты' : 'посмотреть день'}</div>
       </button>`;
   }).join('');
 
