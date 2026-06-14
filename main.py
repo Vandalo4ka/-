@@ -29,7 +29,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CACHE_TTL_SECONDS = 60
 REMINDER_CHECK_SECONDS = 600
 
-DEFAULT_TIME_SLOTS = ["09:30", "16:30", "18:30"]
+DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"]
 RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]
 RU_WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
@@ -759,6 +759,86 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
 
+
+def parse_admin_calendar_day_items(cell_text: str):
+    """
+    Parses day cell lines such as:
+    2026-06-15 Пн
+    09:30 Анна
+    маникюр
+    16:30 Olga
+    маникюр/педикюр
+    18:30 free
+
+    Returns time items where non-time lines after a booked time are service/details.
+    """
+    lines = [str(line or "").strip() for line in str(cell_text or "").splitlines()]
+    lines = [line for line in lines if line]
+
+    items = []
+    current = None
+
+    for line in lines:
+        match = TIME_LINE_RE.match(line)
+
+        if match:
+            if current:
+                items.append(current)
+
+            time_text = normalize_time(match.group(1))
+            status_text = match.group(2).strip()
+
+            current = {
+                "time": time_text,
+                "status": status_text,
+                "details": [],
+            }
+            continue
+
+        if current and not DATE_RE.search(line):
+            current["details"].append(line)
+
+    if current:
+        items.append(current)
+
+    return items
+
+
+def split_admin_booking_status(status_text: str, details: list[str] | None = None):
+    raw = str(status_text or "").strip()
+    details = [str(x or "").strip() for x in (details or []) if str(x or "").strip()]
+
+    parts = [part.strip() for part in raw.split("—") if part.strip()]
+
+    if len(parts) >= 3:
+        return {
+            "client_name": parts[0],
+            "service_name": " — ".join(parts[1:-1]),
+            "price": parts[-1],
+        }
+
+    if len(parts) == 2:
+        return {
+            "client_name": parts[0],
+            "service_name": parts[1],
+            "price": "",
+        }
+
+    if details:
+        return {
+            "client_name": raw,
+            "service_name": " ".join(details),
+            "price": "",
+        }
+
+    return {
+        "client_name": raw,
+        "service_name": "",
+        "price": "",
+    }
+
+
+
 @app.get("/api/admin/dates")
 def admin_dates(key: str | None = Query(default=None)):
     check_admin_key(key)
@@ -774,29 +854,41 @@ def admin_schedule(date: str = Query(...), key: str | None = Query(default=None)
         if not row_index or not col_index:
             raise HTTPException(status_code=404, detail='Date not found')
 
-        _, time_lines = parse_day_cell(cell_text)
+        parsed_items = parse_admin_calendar_day_items(cell_text)
         spreadsheet = get_spreadsheet()
         bookings_ws = spreadsheet.worksheet('bookings')
         items = []
-        for item in sorted(time_lines, key=lambda x: normalize_time(x['time'])):
-            slot_type = status_type_from_text(item['status'])
+
+        for item in sorted(parsed_items, key=lambda x: normalize_time(x["time"])):
+            slot_type = status_type_from_text(item["status"])
             payload = {
-                'time': normalize_time(item['time']),
+                'time': normalize_time(item["time"]),
                 'type': slot_type,
-                'raw_status': item['status'],
+                'raw_status': item["status"],
                 'date': normalize_date(date),
             }
+
             if slot_type == 'booked':
-                _, booking = find_active_booking_by_date_time(bookings_ws, date, item['time'])
-                preview = parse_booking_preview(item['status'])
+                _, booking = find_active_booking_by_date_time(bookings_ws, date, item["time"])
+                preview = split_admin_booking_status(item["status"], item.get("details") or [])
                 payload.update(preview)
+
+                # bookings sheet has priority if present, because it is the most structured source.
                 if booking:
+                    booking_client = str(booking.get('client_name', '')).strip()
+                    booking_service = str(booking.get('service_name', '')).strip()
+                    if booking_client:
+                        payload['client_name'] = booking_client
+                    if booking_service:
+                        payload['service_name'] = booking_service
                     payload.update({
                         'booking_id': str(booking.get('booking_id', '')).strip(),
                         'notes': str(booking.get('notes', '')).strip(),
                         'status': str(booking.get('status', '')).strip(),
                     })
+
             items.append(payload)
+
         return {'date': normalize_date(date), 'items': items}
     except HTTPException:
         raise
