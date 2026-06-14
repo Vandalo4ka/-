@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админка мастера</title>
+  <style>
+    :root{
+      --green:#1f4b45;--green-dark:#153833;--cream:#f6f2eb;--card:#fffdf9;--line:#e8dccd;--peach:#d6a08d;--muted:#7a7a7a;--text:#24322f;
+      --free:#eff8f2;--blocked:#fff0f0;--booked:#faf1ea;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--cream);font-family:Arial,Helvetica,sans-serif;color:var(--text);padding:18px}
+    .app{max-width:860px;margin:0 auto}
+    .header{background:var(--green);color:#fff;border-radius:24px;padding:22px 20px;margin-bottom:18px}
+    .header h1{margin:0;font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:34px}
+    .header p{margin:8px 0 0;font-size:15px;opacity:.92}
+    .card{background:var(--card);border-radius:24px;padding:20px;box-shadow:0 16px 34px rgba(0,0,0,.08)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .date-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:16px 0}
+    .date-btn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px 10px;cursor:pointer;text-align:center}
+    .date-btn strong{display:block;font-size:20px;color:#5b4339}
+    .date-btn span{display:block;font-size:13px;color:#8a6b5f;margin-top:4px}
+    .date-btn.active{background:#fef4ef;border-color:var(--peach)}
+    .toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 18px}
+    button{font-family:inherit}
+    .btn{border:none;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}
+    .btn-primary{background:var(--peach);color:#fff}.btn-secondary{background:#efe8df;color:#5b4339}.btn-outline{background:#fff;border:1px solid var(--line);color:#5b4339}
+    .slots{display:grid;gap:12px}
+    .slot{border:1px solid var(--line);border-radius:18px;padding:16px}
+    .slot.free{background:var(--free)} .slot.blocked{background:var(--blocked)} .slot.booked{background:var(--booked)}
+    .slot-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .time{font-size:20px;font-weight:700;color:#5b4339}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    .badge.free{background:#dceede;color:#32664b}.badge.blocked{background:#f8dede;color:#a14f4f}.badge.booked{background:#f4ddd0;color:#7c4d3b}
+    .meta{margin-top:8px;line-height:1.55;color:#5a514d}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .hidden{display:none}.muted{color:var(--muted)}.error{color:#b95f5f;margin-bottom:12px;line-height:1.45}
+    .empty{padding:18px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
+    @media (max-width:640px){ .header h1{font-size:28px} }
+  </style>
+</head>
+<body>
+<div class="app">
+  <section class="header">
+    <h1>Админка мастера</h1>
+    <p>С телефона можно смотреть записи, закрывать время, открывать его обратно и отменять записи.</p>
+  </section>
+
+  <section class="card">
+    <div class="error hidden" id="errorBox"></div>
+    <div class="row" style="justify-content:space-between;align-items:end">
+      <div>
+        <div class="muted">Дата</div>
+        <div id="selectedDateTitle" style="font-size:24px;font-weight:700;color:#5b4339;margin-top:4px">—</div>
+      </div>
+      <div>
+        <button class="btn btn-outline" id="reloadBtn">Обновить</button>
+      </div>
+    </div>
+
+    <div class="date-list" id="dateList"></div>
+
+    <div class="toolbar">
+      <button class="btn btn-secondary" id="closeDayBtn">Закрыть весь день</button>
+      <button class="btn btn-outline" id="openDayBtn">Открыть весь день</button>
+    </div>
+
+    <div id="slotsWrap" class="slots"></div>
+  </section>
+</div>
+
+<script>
+const state = { dates: [], selectedDate: '', adminKey: '' };
+const params = new URLSearchParams(location.search);
+state.adminKey = params.get('key') || localStorage.getItem('admin_key') || '';
+if(params.get('key')) localStorage.setItem('admin_key', state.adminKey);
+
+const errorBox = document.getElementById('errorBox');
+const dateList = document.getElementById('dateList');
+const selectedDateTitle = document.getElementById('selectedDateTitle');
+const slotsWrap = document.getElementById('slotsWrap');
+
+document.getElementById('reloadBtn').onclick = () => loadSchedule();
+document.getElementById('closeDayBtn').onclick = () => updateDay('close-day');
+document.getElementById('openDayBtn').onclick = () => updateDay('open-day');
+
+function showError(text){ errorBox.textContent=text; errorBox.classList.remove('hidden'); }
+function clearError(){ errorBox.textContent=''; errorBox.classList.add('hidden'); }
+function q(url){ return state.adminKey ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(state.adminKey) : url; }
+function api(url, options={}){ return fetch(q(url), options).then(async res => { const data = await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.detail || 'Ошибка сервера'); return data;}); }
+function dayNum(dateText){ return new Date(dateText+'T00:00:00').getDate(); }
+function dayLabel(dateText){ return new Date(dateText+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short'}).replace('.', ''); }
+function prettyDate(dateText){ return new Date(dateText+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'long', day:'numeric', month:'long'}); }
+
+async function loadDates(){
+  clearError();
+  const dates = await api('/api/admin/dates');
+  state.dates = dates;
+  if(!state.selectedDate && dates.length) state.selectedDate = dates[0];
+  renderDates();
+}
+
+function renderDates(){
+  dateList.innerHTML = state.dates.map(date => `
+    <button class="date-btn ${state.selectedDate===date?'active':''}" data-date="${date}">
+      <strong>${dayNum(date)}</strong>
+      <span>${dayLabel(date)}</span>
+    </button>`).join('');
+  document.querySelectorAll('.date-btn').forEach(btn => btn.onclick = () => { state.selectedDate = btn.dataset.date; renderDates(); loadSchedule(); });
+}
+
+async function loadSchedule(){
+  clearError();
+  if(!state.selectedDate){ slotsWrap.innerHTML = '<div class="empty">Нет доступных дат.</div>'; return; }
+  selectedDateTitle.textContent = prettyDate(state.selectedDate);
+  slotsWrap.innerHTML = '<div class="empty">Загрузка...</div>';
+  try {
+    const data = await api('/api/admin/schedule?date=' + encodeURIComponent(state.selectedDate));
+    if(!data.items.length){ slotsWrap.innerHTML = '<div class="empty">На эту дату слотов нет.</div>'; return; }
+    slotsWrap.innerHTML = data.items.map(item => {
+      const badge = `<span class="badge ${item.type}">${item.type==='free'?'свободно':item.type==='blocked'?'закрыто':'запись'}</span>`;
+      let meta = '';
+      let actions = '';
+      if(item.type === 'free'){
+        meta = '<div class="meta">Свободное время для записи.</div>';
+        actions = `<button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>`;
+      } else if(item.type === 'blocked'){
+        meta = '<div class="meta">Это время скрыто для клиентов.</div>';
+        actions = `<button class="btn btn-outline actionBtn" data-action="unblock" data-time="${item.time}">Открыть</button>`;
+      } else {
+        meta = `<div class="meta"><b>${item.client_name || 'Клиент'}</b><br>${item.service_name || ''}${item.price ? '<br>' + item.price : ''}${item.notes ? '<br>Комментарий: ' + item.notes : ''}${item.booking_id ? '<br>ID: ' + item.booking_id : ''}</div>`;
+        actions = `<button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить запись</button>`;
+      }
+      return `<div class="slot ${item.type}"><div class="slot-top"><div class="time">${item.time}</div>${badge}</div>${meta}<div class="actions">${actions}</div></div>`;
+    }).join('');
+    document.querySelectorAll('.actionBtn').forEach(btn => btn.onclick = () => runAction(btn.dataset.action, btn.dataset.time));
+  } catch(e){ showError(e.message); slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить расписание.</div>'; }
+}
+
+async function runAction(action, time){
+  clearError();
+  const labels = {block:'закрыть это время', unblock:'открыть это время', cancel:'отменить запись'};
+  if(!confirm('Точно ' + labels[action] + '?')) return;
+  const map = { block:'/api/admin/block', unblock:'/api/admin/unblock', cancel:'/api/admin/cancel-slot' };
+  try {
+    await api(map[action], {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({date: state.selectedDate, time})});
+    loadSchedule();
+  } catch(e){ showError(e.message); }
+}
+
+async function updateDay(kind){
+  clearError();
+  const label = kind === 'close-day' ? 'закрыть весь день' : 'открыть весь день';
+  if(!confirm('Точно ' + label + '?')) return;
+  try {
+    await api('/api/admin/' + kind, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({date: state.selectedDate})});
+    loadSchedule();
+  } catch(e){ showError(e.message); }
+}
+
+loadDates().then(loadSchedule).catch(e => showError(e.message));
+</script>
+</body>
+</html>
