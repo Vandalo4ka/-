@@ -38,7 +38,7 @@
     .hidden{display:none}.muted{color:var(--muted)}.error{color:#b95f5f;margin-bottom:12px;line-height:1.45}
     .empty{padding:18px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
     .move-panel{padding:14px 16px;border:1px solid var(--peach);border-radius:16px;background:#fff7f2;margin:12px 0 16px;line-height:1.5}
-    .move-panel b{color:#5b4339}.service-price-row{display:grid;grid-template-columns:1fr 90px auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.service-price-row:last-child{border-bottom:none}.service-price-name{font-weight:700;color:#5b4339}.price-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:15px}
+    .move-panel b{color:#5b4339}.service-price-row{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.service-price-row:last-child{border-bottom:none}.service-price-name{font-weight:700;color:#5b4339}.price-input,.service-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:15px;background:#fff}.services-add-box{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto;gap:10px;align-items:center;margin:14px 0;padding:12px;border:1px dashed var(--line);border-radius:16px;background:#fff}.small-label{font-size:12px;color:var(--muted);margin-bottom:4px}@media(max-width:640px){.service-price-row,.services-add-box{grid-template-columns:1fr}.service-price-row button,.services-add-box button{width:100%}}
     @media (max-width:640px){ .header h1{font-size:28px}.date-list{grid-template-columns:repeat(5,minmax(86px,1fr));overflow-x:auto}.date-btn{min-width:86px}.card{padding:14px}.slot{grid-template-columns:1fr;align-items:start}.actions{justify-content:flex-start}.time{font-size:24px} }
   </style>
 </head>
@@ -339,79 +339,167 @@ async function toggleServicesPanel(){
   }
 
   servicesPanel.classList.remove('hidden');
-  servicesPanel.innerHTML = '<b>Цены на услуги</b><br><span class="muted">Загрузка...</span>';
+  servicesPanel.innerHTML = '<b>Услуги и цены</b><br><span class="muted">Загрузка...</span>';
 
+  await renderServicesPanel();
+}
+
+async function renderServicesPanel(){
   try {
     const services = await api('/api/admin/services');
 
-    if(!services.length){
-      servicesPanel.innerHTML = '<b>Цены на услуги</b><br><span class="muted">Услуги не найдены.</span>';
-      return;
-    }
-
     servicesPanel.innerHTML = `
-      <b>Цены на услуги</b>
+      <b>Услуги и цены</b>
+      <div class="services-add-box">
+        <div>
+          <div class="small-label">Новая услуга</div>
+          <input class="service-input" id="newServiceName" placeholder="Название">
+        </div>
+        <div>
+          <div class="small-label">Минуты</div>
+          <input class="service-input" id="newServiceDuration" placeholder="60">
+        </div>
+        <div>
+          <div class="small-label">Цена</div>
+          <input class="service-input" id="newServicePrice" placeholder="40">
+        </div>
+        <div>
+          <div class="small-label">Описание</div>
+          <input class="service-input" id="newServiceDescription" placeholder="Короткое описание">
+        </div>
+        <button class="btn btn-primary" id="createServiceBtn">Добавить</button>
+      </div>
+
       <div style="margin-top:10px">
-        ${services.map(service => `
-          <div class="service-price-row">
+        ${services.length ? services.map(service => `
+          <div class="service-price-row" data-service-id="${service.service_id}">
             <div>
-              <div class="service-price-name">${service.name}</div>
-              <div class="muted">${service.duration_min || ''} мин</div>
+              <div class="small-label">Название</div>
+              <input class="service-input service-name-input" data-service-id="${service.service_id}" value="${escapeHtml(service.name || '')}">
             </div>
-            <input class="price-input" data-service-id="${service.service_id}" data-name="${service.name}" value="${service.price || ''}">
-            <button class="btn btn-primary savePriceBtn" data-service-id="${service.service_id}" data-name="${service.name}">Сохранить</button>
+            <div>
+              <div class="small-label">Минуты</div>
+              <input class="service-input service-duration-input" data-service-id="${service.service_id}" value="${escapeHtml(service.duration_min || '')}">
+            </div>
+            <div>
+              <div class="small-label">Цена</div>
+              <input class="price-input service-price-input" data-service-id="${service.service_id}" value="${escapeHtml(service.price || '')}">
+            </div>
+            <div>
+              <div class="small-label">Описание</div>
+              <input class="service-input service-description-input" data-service-id="${service.service_id}" value="${escapeHtml(service.description || '')}">
+            </div>
+            <button class="btn btn-primary saveServiceBtn" data-service-id="${service.service_id}">Сохранить</button>
+            <button class="btn btn-secondary deleteServiceBtn" data-service-id="${service.service_id}">Удалить</button>
           </div>
-        `).join('')}
+        `).join('') : '<div class="muted">Услуги не найдены.</div>'}
       </div>
     `;
 
-    document.querySelectorAll('.savePriceBtn').forEach(btn => {
-      btn.onclick = () => saveServicePrice(btn.dataset.serviceId, btn.dataset.name);
+    document.getElementById('createServiceBtn').onclick = createService;
+
+    document.querySelectorAll('.saveServiceBtn').forEach(btn => {
+      btn.onclick = () => saveService(btn.dataset.serviceId);
     });
+
+    document.querySelectorAll('.deleteServiceBtn').forEach(btn => {
+      btn.onclick = () => deleteService(btn.dataset.serviceId);
+    });
+
   } catch(e){
     showError('Не удалось загрузить услуги. ' + e.message);
   }
 }
 
-async function saveServicePrice(serviceId, name){
+function escapeHtml(value){
+  return String(value || '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+
+async function saveService(serviceId){
   clearError();
 
-  const input = document.querySelector(`.price-input[data-service-id="${serviceId}"]`) 
-    || document.querySelector(`.price-input[data-name="${name}"]`);
+  const name = document.querySelector(`.service-name-input[data-service-id="${serviceId}"]`)?.value.trim() || '';
+  const duration = document.querySelector(`.service-duration-input[data-service-id="${serviceId}"]`)?.value.trim() || '';
+  const price = document.querySelector(`.service-price-input[data-service-id="${serviceId}"]`)?.value.trim() || '';
+  const description = document.querySelector(`.service-description-input[data-service-id="${serviceId}"]`)?.value.trim() || '';
 
-  if(!input) return;
-
-  const price = input.value.trim();
-
-  if(!price){
-    showError('Введите цену.');
+  if(!name || !duration || !price){
+    showError('Заполните название, длительность и цену.');
     return;
   }
 
   try {
-    await api('/api/admin/services/update-price', {
+    await api('/api/admin/services/update', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         service_id: serviceId,
         name,
-        price
+        duration_min: duration,
+        price,
+        description,
+        is_active: 'TRUE'
       })
     });
 
-    input.style.borderColor = '#6aa777';
-    input.style.background = '#f1fbf3';
-
-    setTimeout(() => {
-      input.style.borderColor = '';
-      input.style.background = '';
-    }, 900);
-
+    await renderServicesPanel();
   } catch(e){
-    showError('Не удалось сохранить цену. ' + e.message);
+    showError('Не удалось сохранить услугу. ' + e.message);
   }
 }
 
+async function createService(){
+  clearError();
+
+  const name = document.getElementById('newServiceName').value.trim();
+  const duration = document.getElementById('newServiceDuration').value.trim();
+  const price = document.getElementById('newServicePrice').value.trim();
+  const description = document.getElementById('newServiceDescription').value.trim();
+
+  if(!name || !duration || !price){
+    showError('Заполните название, длительность и цену новой услуги.');
+    return;
+  }
+
+  try {
+    await api('/api/admin/services/create', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name,
+        duration_min: duration,
+        price,
+        description
+      })
+    });
+
+    await renderServicesPanel();
+  } catch(e){
+    showError('Не удалось добавить услугу. ' + e.message);
+  }
+}
+
+async function deleteService(serviceId){
+  clearError();
+
+  if(!confirm('Удалить услугу? Она будет скрыта с клиентской страницы, но останется в Google Sheets как inactive.')) return;
+
+  try {
+    await api('/api/admin/services/delete', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ service_id: serviceId })
+    });
+
+    await renderServicesPanel();
+  } catch(e){
+    showError('Не удалось удалить услугу. ' + e.message);
+  }
+}
 
 async function addFreeSlot(){
   clearError();
