@@ -26,20 +26,20 @@
     button{font-family:inherit}
     .btn{border:none;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}
     .btn-primary{background:var(--peach);color:#fff}.btn-secondary{background:#efe8df;color:#5b4339}.btn-outline{background:#fff;border:1px solid var(--line);color:#5b4339}
-    .slots{display:grid;gap:12px}
-    .slot{border:1px solid var(--line);border-radius:18px;padding:16px}
+    .slots{display:grid;gap:10px}.day-sheet{border:1px solid var(--line);border-radius:22px;background:#fff;padding:18px;margin-top:12px}.day-title{font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#5b4339;margin:0 0 14px}.day-subtitle{color:var(--muted);font-size:14px;margin-top:-8px;margin-bottom:16px}.slot-list{display:grid;gap:10px}
+    .slot{border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:86px 1fr auto;gap:12px;align-items:center}
     .slot.free{background:var(--free)} .slot.blocked{background:var(--blocked)} .slot.booked{background:var(--booked)}
-    .slot-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .time{font-size:20px;font-weight:700;color:#5b4339}
+    .slot-top{display:block}
+    .time{font-size:22px;font-weight:700;color:#5b4339}
     .badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
     .badge.free{background:#dceede;color:#32664b}.badge.blocked{background:#f8dede;color:#a14f4f}.badge.booked{background:#f4ddd0;color:#7c4d3b}
-    .meta{margin-top:8px;line-height:1.55;color:#5a514d}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .meta{margin-top:0;line-height:1.45;color:#5a514d}.record-line{font-size:16px}.record-line b{color:#5b4339}.service-line{margin-top:4px;color:#6b5d55}.price-line{margin-top:4px;font-weight:700;color:#5b4339}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:0}
     .hidden{display:none}.muted{color:var(--muted)}.error{color:#b95f5f;margin-bottom:12px;line-height:1.45}
     .empty{padding:18px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
     .move-panel{padding:14px 16px;border:1px solid var(--peach);border-radius:16px;background:#fff7f2;margin:12px 0 16px;line-height:1.5}
     .move-panel b{color:#5b4339}
-    @media (max-width:640px){ .header h1{font-size:28px}.date-list{grid-template-columns:repeat(5,minmax(86px,1fr));overflow-x:auto}.date-btn{min-width:86px}.card{padding:14px} }
+    @media (max-width:640px){ .header h1{font-size:28px}.date-list{grid-template-columns:repeat(5,minmax(86px,1fr));overflow-x:auto}.date-btn{min-width:86px}.card{padding:14px}.slot{grid-template-columns:1fr;align-items:start}.actions{justify-content:flex-start}.time{font-size:24px} }
   </style>
 </head>
 <body>
@@ -196,12 +196,22 @@ async function loadSchedule(){
   try {
     const data = await api('/api/admin/schedule?date=' + encodeURIComponent(state.selectedDate));
     if(!data.items.length){ slotsWrap.innerHTML = '<div class="empty">На эту дату слотов нет.</div>'; return; }
-    slotsWrap.innerHTML = data.items.map(item => {
-      const badge = `<span class="badge ${item.type}">${item.type==='free'?'свободно':item.type==='blocked'?'закрыто':'запись'}</span>`;
-      let meta = '';
+
+    const dayNumberText = dayNum(state.selectedDate);
+    const dayNameText = dayLabel(state.selectedDate);
+    const fullDateText = prettyDate(state.selectedDate);
+
+    const rows = data.items.map(item => {
+      let statusBadge = '';
+      let detail = '';
       let actions = '';
+
       if(item.type === 'free'){
-        meta = '<div class="meta">Свободное время для записи.</div>';
+        statusBadge = '<span class="badge free">свободно</span>';
+        detail = `
+          <div class="record-line"><b>Свободно</b></div>
+          <div class="service-line">Можно записать клиента</div>
+        `;
         if(state.movingBooking){
           actions = `
             <button class="btn btn-primary moveHereBtn" data-date="${item.date}" data-time="${item.time}">
@@ -217,24 +227,53 @@ async function loadSchedule(){
           `;
         }
       } else if(item.type === 'blocked'){
-        meta = '<div class="meta">Это время скрыто для клиентов.</div>';
+        statusBadge = '<span class="badge blocked">закрыто</span>';
+        detail = `
+          <div class="record-line"><b>Закрыто</b></div>
+          <div class="service-line">Клиенты не видят это время</div>
+        `;
         actions = `<button class="btn btn-outline actionBtn" data-action="unblock" data-time="${item.time}">Открыть</button>`;
       } else {
-        meta = `<div class="meta"><b>Клиент</b><br>${item.client_name || '—'}<br><b>Услуга</b><br>${item.service_name || '—'}${item.price ? '<br><b>Цена</b><br>' + item.price : ''}${item.notes ? '<br><b>Комментарий</b><br>' + item.notes : ''}${item.booking_id ? '<br><span class="muted">ID: ' + item.booking_id + '</span>' : ''}</div>`;
+        statusBadge = '<span class="badge booked">запись</span>';
+        detail = `
+          <div class="record-line"><b>${item.client_name || 'Клиент'}</b></div>
+          <div class="service-line">${item.service_name || 'Услуга не указана'}</div>
+          ${item.price ? `<div class="price-line">${item.price}</div>` : ''}
+          ${item.notes ? `<div class="service-line">Комментарий: ${item.notes}</div>` : ''}
+        `;
         actions = `
-          <button class="btn btn-outline selectMoveBtn" 
-            data-booking-id="${item.booking_id || ''}" 
-            data-date="${item.date}" 
+          <button class="btn btn-outline selectMoveBtn"
+            data-booking-id="${item.booking_id || ''}"
+            data-date="${item.date}"
             data-time="${item.time}"
             data-client="${item.client_name || ''}"
             data-service="${item.service_name || ''}">
             Изменить дату/время
           </button>
-          <button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить запись</button>
+          <button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить</button>
         `;
       }
-      return `<div class="slot ${item.type}"><div class="slot-top"><div class="time">${item.time}</div>${badge}</div>${meta}<div class="actions">${actions}</div></div>`;
+
+      return `
+        <div class="slot ${item.type}">
+          <div class="slot-top">
+            <div class="time">${item.time}</div>
+            ${statusBadge}
+          </div>
+          <div class="meta">${detail}</div>
+          <div class="actions">${actions}</div>
+        </div>
+      `;
     }).join('');
+
+    slotsWrap.innerHTML = `
+      <div class="day-sheet">
+        <h2 class="day-title">${dayNumberText}</h2>
+        <div class="day-subtitle">${dayNameText}, ${fullDateText}</div>
+        <div class="slot-list">${rows}</div>
+      </div>
+    `;
+
     document.querySelectorAll('.actionBtn').forEach(btn => btn.onclick = () => runAction(btn.dataset.action, btn.dataset.time));
 
     document.querySelectorAll('.selectMoveBtn').forEach(btn => {
