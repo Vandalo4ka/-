@@ -17,11 +17,11 @@
     .header p{margin:8px 0 0;font-size:15px;opacity:.92}
     .card{background:var(--card);border-radius:24px;padding:20px;box-shadow:0 16px 34px rgba(0,0,0,.08)}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .date-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:16px 0}
-    .date-btn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px 10px;cursor:pointer;text-align:center}
-    .date-btn strong{display:block;font-size:20px;color:#5b4339}
+    .date-list{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:16px 0}
+    .date-btn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:14px 10px;cursor:pointer;text-align:left;min-height:96px;display:flex;flex-direction:column;justify-content:space-between}
+    .date-btn strong{display:block;font-size:24px;color:#5b4339}
     .date-btn span{display:block;font-size:13px;color:#8a6b5f;margin-top:4px}
-    .date-btn.active{background:#fef4ef;border-color:var(--peach)}
+    .date-btn.active{background:#fef4ef;border-color:var(--peach)} .date-btn .mini{font-size:12px;color:var(--muted);line-height:1.35;margin-top:8px}.week-nav{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:14px}.week-title{font-weight:700;color:#5b4339}
     .toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 18px}
     button{font-family:inherit}
     .btn{border:none;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}
@@ -39,7 +39,7 @@
     .empty{padding:18px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
     .move-panel{padding:14px 16px;border:1px solid var(--peach);border-radius:16px;background:#fff7f2;margin:12px 0 16px;line-height:1.5}
     .move-panel b{color:#5b4339}
-    @media (max-width:640px){ .header h1{font-size:28px} }
+    @media (max-width:640px){ .header h1{font-size:28px}.date-list{grid-template-columns:repeat(5,minmax(86px,1fr));overflow-x:auto}.date-btn{min-width:86px}.card{padding:14px} }
   </style>
 </head>
 <body>
@@ -61,6 +61,11 @@
       </div>
     </div>
 
+    <div class="week-nav">
+      <button class="btn btn-outline" id="prevWeekBtn">‹ неделя</button>
+      <div class="week-title" id="weekTitle">Неделя</div>
+      <button class="btn btn-outline" id="nextWeekBtn">неделя ›</button>
+    </div>
     <div class="date-list" id="dateList"></div>
 
     <div class="toolbar">
@@ -75,7 +80,7 @@
 </div>
 
 <script>
-const state = { dates: [], selectedDate: '', adminKey: '', movingBooking: null };
+const state = { dates: [], selectedDate: '', adminKey: '', movingBooking: null, weekStart: '' };
 const params = new URLSearchParams(location.search);
 state.adminKey = params.get('key') || localStorage.getItem('admin_key') || '';
 if(params.get('key')) localStorage.setItem('admin_key', state.adminKey);
@@ -84,10 +89,15 @@ const errorBox = document.getElementById('errorBox');
 const dateList = document.getElementById('dateList');
 const selectedDateTitle = document.getElementById('selectedDateTitle');
 const slotsWrap = document.getElementById('slotsWrap');
+const weekTitle = document.getElementById('weekTitle');
+const prevWeekBtn = document.getElementById('prevWeekBtn');
+const nextWeekBtn = document.getElementById('nextWeekBtn');
 
 document.getElementById('reloadBtn').onclick = () => loadSchedule();
 document.getElementById('closeDayBtn').onclick = () => updateDay('close-day');
 document.getElementById('openDayBtn').onclick = () => updateDay('open-day');
+prevWeekBtn.onclick = () => shiftWeek(-7);
+nextWeekBtn.onclick = () => shiftWeek(7);
 
 function showError(text){ errorBox.textContent=text; errorBox.classList.remove('hidden'); }
 function clearError(){ errorBox.textContent=''; errorBox.classList.add('hidden'); }
@@ -97,21 +107,85 @@ function dayNum(dateText){ return new Date(dateText+'T00:00:00').getDate(); }
 function dayLabel(dateText){ return new Date(dateText+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short'}).replace('.', ''); }
 function prettyDate(dateText){ return new Date(dateText+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'long', day:'numeric', month:'long'}); }
 
+function toISODate(d){
+  const copy = new Date(d);
+  copy.setHours(0,0,0,0);
+  const y = copy.getFullYear();
+  const m = String(copy.getMonth()+1).padStart(2,'0');
+  const day = String(copy.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function mondayOf(dateText){
+  const d = new Date(dateText + 'T00:00:00');
+  const day = d.getDay(); // 0 Sun, 1 Mon
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return toISODate(d);
+}
+
+function addDays(dateText, days){
+  const d = new Date(dateText + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+function weekDates(){
+  if(!state.weekStart){
+    state.weekStart = mondayOf(state.selectedDate || state.dates[0] || toISODate(new Date()));
+  }
+  return [0,1,2,3,4].map(offset => addDays(state.weekStart, offset));
+}
+
+function shiftWeek(days){
+  state.weekStart = addDays(state.weekStart, days);
+  const dates = weekDates();
+  state.selectedDate = dates[0];
+  renderDates();
+  loadSchedule();
+}
+
+function monthDay(dateText){
+  return new Date(dateText + 'T00:00:00').toLocaleDateString('ru-RU',{day:'numeric', month:'short'}).replace('.', '');
+}
+
+
 async function loadDates(){
   clearError();
   const dates = await api('/api/admin/dates');
   state.dates = dates;
   if(!state.selectedDate && dates.length) state.selectedDate = dates[0];
+  if(!state.weekStart && state.selectedDate) state.weekStart = mondayOf(state.selectedDate);
   renderDates();
 }
 
 function renderDates(){
-  dateList.innerHTML = state.dates.map(date => `
-    <button class="date-btn ${state.selectedDate===date?'active':''}" data-date="${date}">
-      <strong>${dayNum(date)}</strong>
-      <span>${dayLabel(date)}</span>
-    </button>`).join('');
-  document.querySelectorAll('.date-btn').forEach(btn => btn.onclick = () => { state.selectedDate = btn.dataset.date; renderDates(); loadSchedule(); });
+  const dates = weekDates();
+  const available = new Set(state.dates);
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+
+  weekTitle.textContent = monthDay(first) + ' — ' + monthDay(last);
+
+  dateList.innerHTML = dates.map(date => {
+    const disabled = !available.has(date);
+    return `
+      <button class="date-btn ${state.selectedDate===date?'active':''}" data-date="${date}" ${disabled ? 'disabled' : ''}>
+        <div>
+          <strong>${dayNum(date)}</strong>
+          <span>${dayLabel(date)}</span>
+        </div>
+        <div class="mini">${disabled ? 'нет слотов' : 'записи / слоты'}</div>
+      </button>`;
+  }).join('');
+
+  document.querySelectorAll('.date-btn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date;
+      renderDates();
+      loadSchedule();
+    };
+  });
 }
 
 async function loadSchedule(){
@@ -146,7 +220,7 @@ async function loadSchedule(){
         meta = '<div class="meta">Это время скрыто для клиентов.</div>';
         actions = `<button class="btn btn-outline actionBtn" data-action="unblock" data-time="${item.time}">Открыть</button>`;
       } else {
-        meta = `<div class="meta"><b>${item.client_name || 'Клиент'}</b><br>${item.service_name || ''}${item.price ? '<br>' + item.price : ''}${item.notes ? '<br>Комментарий: ' + item.notes : ''}${item.booking_id ? '<br>ID: ' + item.booking_id : ''}</div>`;
+        meta = `<div class="meta"><b>Клиент</b><br>${item.client_name || '—'}<br><b>Услуга</b><br>${item.service_name || '—'}${item.price ? '<br><b>Цена</b><br>' + item.price : ''}${item.notes ? '<br><b>Комментарий</b><br>' + item.notes : ''}${item.booking_id ? '<br><span class="muted">ID: ' + item.booking_id + '</span>' : ''}</div>`;
         actions = `
           <button class="btn btn-outline selectMoveBtn" 
             data-booking-id="${item.booking_id || ''}" 
@@ -283,6 +357,7 @@ async function moveBookingHere(newDate, newTime){
     state.movingBooking = null;
     await loadDates();
     state.selectedDate = newDate;
+    state.weekStart = mondayOf(newDate);
     renderDates();
     loadSchedule();
   } catch(e){
