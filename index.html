@@ -3,981 +3,395 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Запись к мастеру маникюра</title>
-
+  <title>Онлайн запись</title>
   <style>
     :root {
-      --bg: #f3ede5;
-      --card: #ffffff;
-      --text: #6b4b43;
-      --muted: #9d7f78;
-      --accent: #c98091;
-      --accent-dark: #b86d7f;
-      --accent-light: #ead0d5;
-      --line: #eadfda;
-      --error: #b85d70;
-      --shadow: rgba(92, 62, 50, 0.10);
+      --green: #1f4b45;
+      --green-dark: #153833;
+      --cream: #f6f2eb;
+      --card: #fbf7f2;
+      --line: #e8dccd;
+      --peach: #d6a08d;
+      --peach-dark: #c98b75;
+      --text: #24322f;
+      --muted: #7a7a7a;
+      --white: #fff;
+      --error: #b95f5f;
+      --shadow: rgba(0,0,0,.10);
     }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Georgia, "Times New Roman", serif;
-      display: flex;
-      justify-content: center;
-      padding: 28px 16px;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:linear-gradient(180deg,var(--green) 0 210px,var(--cream) 210px 100%);
+      color:var(--text);
+      font-family:Arial, Helvetica, sans-serif;
+      min-height:100vh;
+      padding:18px 14px 32px;
     }
-
-    .app { width: 100%; max-width: 680px; }
-
-    .avatar {
-      width: 74px;
-      height: 74px;
-      margin: 0 auto 18px;
-      border-radius: 50%;
-      background: #f4dce2;
-      border: 2px solid #e6b9c4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--accent);
-      font-size: 34px;
+    .app{max-width:760px;margin:0 auto}
+    .hero{
+      color:#fff;
+      text-align:center;
+      padding:12px 0 22px;
     }
-
-    h1 {
-      text-align: center;
-      font-weight: 400;
-      font-size: 34px;
-      margin: 0 0 8px;
+    .hero-badge{
+      width:72px;height:72px;border-radius:50%;background:#f6d7c8;display:flex;align-items:center;justify-content:center;
+      color:var(--green);font-size:32px;margin:0 auto 18px;border:1px solid rgba(255,255,255,.25)
     }
-
-    .subtitle {
-      text-align: center;
-      font-family: Arial, sans-serif;
-      letter-spacing: 1px;
-      color: var(--muted);
-      margin-bottom: 34px;
-      font-size: 14px;
-    }
-
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin: 0 auto 26px;
-      max-width: 440px;
-      font-family: Arial, sans-serif;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .step {
-      text-align: center;
-      position: relative;
-    }
-
-    .step::before {
-      content: "";
-      position: absolute;
-      top: 16px;
-      left: -50%;
-      width: 100%;
-      height: 1px;
-      background: var(--line);
-      z-index: 0;
-    }
-
-    .step:first-child::before { display: none; }
-
-    .step-num {
-      width: 32px;
-      height: 32px;
-      margin: 0 auto 8px;
-      border-radius: 50%;
-      background: #fff;
-      border: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      z-index: 1;
-      font-weight: 700;
-    }
-
-    .step.active .step-num {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    .step.active { color: var(--accent); }
-
-    .card {
-      background: var(--card);
-      border-radius: 22px;
-      padding: 34px;
-      box-shadow: 0 18px 40px var(--shadow);
-    }
-
-    .card-title {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 22px;
-      margin-bottom: 24px;
-    }
-
-    .icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: #f4dce2;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: Arial, sans-serif;
-      font-size: 15px;
-      flex: none;
-    }
-
-    .options {
-      display: grid;
-      gap: 12px;
-      margin-bottom: 26px;
-    }
-
-    .option {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      cursor: pointer;
-      font-family: Arial, sans-serif;
-      color: var(--text);
-      background: #fff;
-      transition: 0.15s ease;
-    }
-
-    .option:hover,
-    .option.selected {
-      border-color: var(--accent);
-      background: #fbf1f3;
-    }
-
-    .option-main {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    .option-meta {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .form-grid {
-      display: grid;
-      gap: 14px;
-      margin-bottom: 22px;
-      font-family: Arial, sans-serif;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px 16px;
-      font-size: 15px;
-      color: var(--text);
-      outline: none;
-      font-family: Arial, sans-serif;
-      background: #fff;
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 82px;
-    }
-
-    input:focus,
-    textarea:focus { border-color: var(--accent); }
-
-    .buttons {
-      display: grid;
-      grid-template-columns: 1fr 2fr;
-      gap: 12px;
-    }
-
-    button,
-    .tg-button {
-      border: none;
-      border-radius: 14px;
-      padding: 16px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: Arial, sans-serif;
-      transition: 0.15s ease;
-      text-decoration: none;
-      display: inline-block;
-      text-align: center;
-    }
-
-    .primary {
-      background: var(--accent-light);
-      color: #fff;
-      cursor: not-allowed;
-    }
-
-    .primary.enabled {
-      background: var(--accent);
-      cursor: pointer;
-    }
-
-    .primary.enabled:hover,
-    .tg-button:hover {
-      background: var(--accent-dark);
-    }
-
-    .secondary {
-      background: #f7f0ed;
-      color: var(--muted);
-    }
-
-    .tg-button {
-      margin-top: 14px;
-      background: var(--accent);
-      color: white;
-      width: 100%;
-    }
-
-    .cancel-button {
-      margin-top: 12px;
-      background: #f7f0ed;
-      color: var(--error);
-      width: 100%;
-    }
-
-    .cancel-button:hover {
-      background: #f3e3e0;
-    }
-
-    .lookup-card {
-      margin-top: 20px;
-      background: #fbf1f3;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      font-family: Arial, sans-serif;
-      line-height: 1.5;
-    }
-
-    .booking-result {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px;
-      margin-top: 12px;
-      background: #fff;
-      font-family: Arial, sans-serif;
-      line-height: 1.5;
-    }
-
-    .link-button {
-      border: none;
-      background: transparent;
-      color: var(--accent-dark);
-      cursor: pointer;
-      padding: 0;
-      font-size: 14px;
-      font-weight: 700;
-      font-family: Arial, sans-serif;
-      text-decoration: underline;
-    }
-
-    .error {
-      color: var(--error);
-      font-family: Arial, sans-serif;
-      margin-bottom: 20px;
-      line-height: 1.5;
-    }
-
-    .success {
-      text-align: center;
-      font-family: Arial, sans-serif;
-      line-height: 1.7;
-      padding: 20px 0;
-    }
-
-    .success-title {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 28px;
-      margin-bottom: 12px;
-    }
-
-    .summary {
-      background: #fbf1f3;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 20px;
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-    }
-
-
-    .date-strip {
-      display: grid;
-      grid-template-columns: 36px 1fr 36px;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 20px;
-      font-family: Arial, sans-serif;
-    }
-
-    .month-label {
-      font-family: Arial, sans-serif;
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-
-    .date-list {
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(58px, 1fr);
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 6px;
-    }
-
-    .date-card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: #fff;
-      padding: 10px 6px;
-      text-align: center;
-      cursor: pointer;
-      font-family: Arial, sans-serif;
-      min-width: 58px;
-      transition: 0.15s ease;
-    }
-
-    .date-card:hover,
-    .date-card.selected {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    .date-day {
-      font-size: 17px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .date-weekday {
-      font-size: 12px;
-      color: inherit;
-      opacity: 0.85;
-    }
-
-    .calendar-arrow {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      padding: 0;
-      background: #f7f0ed;
-      color: var(--muted);
-      cursor: pointer;
-    }
-
-    .time-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .time-chip {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #f7f0ed;
-      padding: 10px 8px;
-      text-align: center;
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-      cursor: pointer;
-      transition: 0.15s ease;
-    }
-
-    .time-chip:hover {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-
-    .calendar-note {
-      font-family: Arial, sans-serif;
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: -6px;
-      margin-bottom: 16px;
-    }
-
-    .hidden { display: none; }
-
-    @media (max-width: 560px) {
-      body { padding: 22px 12px; }
-      .card { padding: 24px 18px; }
-      h1 { font-size: 30px; }
-      .buttons { grid-template-columns: 1fr; }
+    h1{font-family:Georgia,"Times New Roman",serif;font-size:44px;line-height:1.08;margin:0 0 8px;font-weight:400}
+    .subtitle{font-size:18px;opacity:.95;margin:0}
+    .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:480px;margin:18px auto 0;color:#f2e9de}
+    .step{position:relative;text-align:center;font-size:13px}
+    .step::before{content:"";position:absolute;left:-50%;top:17px;width:100%;height:2px;background:rgba(255,255,255,.35)}
+    .step:first-child::before{display:none}
+    .num{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.5);background:#fff;color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;margin:0 auto 8px;position:relative;z-index:1}
+    .step.active .num{background:var(--peach);border-color:var(--peach);color:#fff}
+    .step.active{color:#fff}
+    .card{background:var(--card);border-radius:28px;box-shadow:0 18px 38px var(--shadow);padding:28px;margin-top:22px}
+    .title-row{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+    .icon{width:34px;height:34px;border-radius:50%;background:#f6d7e0;color:var(--peach-dark);display:flex;align-items:center;justify-content:center;flex:none}
+    .card-title{font-family:Georgia,"Times New Roman",serif;font-size:24px;margin:0;color:#5b4339;font-weight:400}
+    .helper{color:var(--muted);font-size:14px;line-height:1.5;margin:12px 0 0}
+    .error{color:var(--error);margin:0 0 14px;line-height:1.45}
+    .top-actions{display:flex;justify-content:flex-end;margin-bottom:14px}
+    .text-link{background:none;border:none;color:var(--green);font-weight:700;cursor:pointer;padding:0}
+    .services,.slots,.cancel-results{display:grid;gap:14px}
+    .service,.slot,.cancel-item{border:1px solid var(--line);border-radius:18px;padding:18px;cursor:pointer;background:#fff;transition:.16s}
+    .service:hover,.service.selected,.slot:hover,.slot.selected,.cancel-item:hover{border-color:var(--peach);background:#fefaf7}
+    .service-top,.slot-top,.cancel-top{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+    .service-name,.slot-time{font-size:18px;font-weight:700;color:#5b4339}
+    .price{font-size:18px;font-weight:700;color:#5b4339;white-space:nowrap}
+    .meta{font-size:14px;color:var(--muted);margin-top:8px}
+    .note-box{margin-top:20px;background:#faf3ec;border:1px solid var(--line);border-radius:16px;padding:14px 16px;color:#756861;font-size:14px;line-height:1.5}
+    .date-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .month-label{font-weight:700;color:#8a6b5f;text-transform:uppercase;letter-spacing:.03em}
+    .date-grid{display:grid;grid-template-columns:44px repeat(7,1fr) 44px;gap:10px;align-items:stretch}
+    .nav-btn,.date-btn{border:1px solid var(--line);background:#fff;border-radius:16px;min-height:62px;cursor:pointer}
+    .nav-btn{font-size:20px;color:#8a6b5f}
+    .date-btn{padding:8px 4px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px}
+    .date-btn strong{font-size:26px;color:#5b4339;line-height:1}
+    .date-btn span{font-size:14px;color:#8a6b5f}
+    .date-btn.selected{background:#fef4ef;border-color:var(--peach)}
+    .date-btn:disabled,.nav-btn:disabled{opacity:.45;cursor:not-allowed}
+    .slots{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+    .slot{text-align:center;padding:16px}
+    .slot-time{margin:0}
+    .summary,.success-block,.soft-block{background:#faf3ec;border:1px solid var(--line);border-radius:18px;padding:18px}
+    .summary{line-height:1.7;margin-bottom:18px}
+    input,textarea{width:100%;padding:15px 16px;border-radius:14px;border:1px solid var(--line);font-size:16px;background:#fff;color:var(--text);outline:none}
+    input:focus,textarea:focus{border-color:var(--peach)}
+    textarea{min-height:96px;resize:vertical}
+    .form{display:grid;gap:14px}
+    .buttons{display:grid;grid-template-columns:1fr 1.4fr;gap:14px;margin-top:20px}
+    button{font-family:inherit}
+    .btn{border:none;border-radius:16px;padding:16px 18px;font-size:18px;font-weight:700;cursor:pointer;transition:.16s}
+    .btn-primary{background:var(--peach);color:#fff}
+    .btn-primary:hover{background:var(--peach-dark)}
+    .btn-primary[disabled]{opacity:.55;cursor:not-allowed}
+    .btn-secondary{background:#efe8df;color:#6f625a}
+    .success-title{font-family:Georgia,"Times New Roman",serif;font-size:26px;color:#5b4339;text-align:center;margin:0 0 12px;font-weight:400}
+    .success-main{text-align:center;font-size:18px;line-height:1.75}
+    .stack{display:grid;gap:14px;margin-top:18px}
+    .action-link{display:inline-flex;justify-content:center;align-items:center;text-decoration:none;width:100%;border-radius:16px;padding:15px 18px;background:var(--peach);color:#fff;font-weight:700}
+    .action-link.secondary{background:#efe8df;color:#5b4339}
+    .hidden{display:none !important}
+    .cancel-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:16px}
+    .pill{display:inline-block;background:#f1e9df;color:#7b6b60;border-radius:999px;padding:6px 10px;font-size:12px;margin-top:8px}
+    @media (max-width:720px){
+      h1{font-size:34px}
+      .subtitle{font-size:16px}
+      .card{padding:22px}
+      .date-grid{grid-template-columns:38px repeat(4,1fr) 38px}
+      .date-grid .date-btn:nth-child(n+7):nth-child(-n+9){display:none}
+      .buttons{grid-template-columns:1fr}
+      .cancel-form{grid-template-columns:1fr}
     }
   </style>
 </head>
-
 <body>
-  <main class="app">
-    <div class="avatar">♡</div>
-    <h1>Запись к Светлане</h1>
-    <div class="subtitle">Мастер маникюра и педикюра</div>
-
-    <div class="steps">
-      <div class="step active" id="step1"><div class="step-num">1</div><div>Услуга</div></div>
-      <div class="step" id="step2"><div class="step-num">2</div><div>Дата</div></div>
-      <div class="step" id="step3"><div class="step-num">3</div><div>Время</div></div>
-      <div class="step" id="step4"><div class="step-num">4</div><div>Готово</div></div>
-    </div>
-
-    <section class="card">
-      <div class="card-title">
-        <span class="icon" id="cardIcon">♡</span>
-        <span id="cardTitle">Выберите услугу</span>
-      </div>
-
-      <div id="error" class="error hidden"></div>
-      <div id="content"></div>
-
-      <div class="buttons" id="buttons">
-        <button class="secondary hidden" id="backBtn">Назад</button>
-        <button class="primary hidden" id="nextBtn">Далее →</button>
+  <div class="app">
+    <section class="hero">
+      <div class="hero-badge">♡</div>
+      <h1>Онлайн запись</h1>
+      <p class="subtitle">Выберите услугу и удобное время</p>
+      <div class="steps" id="steps">
+        <div class="step active" id="step1"><div class="num">1</div>Услуга</div>
+        <div class="step" id="step2"><div class="num">2</div>Дата</div>
+        <div class="step" id="step3"><div class="num">3</div>Время</div>
+        <div class="step" id="step4"><div class="num">4</div>Готово</div>
       </div>
     </section>
-  </main>
 
-  <script>
-    const state = {
-      step: 1,
-      services: [],
-      dates: [],
-      slots: [],
-      selectedService: null,
-      selectedDate: null,
-      selectedTime: null,
-      clientName: "",
-      notes: "",
-      cancelMode: false,
-      visibleDateStart: 0
+    <section class="card">
+      <div class="top-actions" id="homeActionBar">
+        <button class="text-link" id="showCancelModeBtn">Уже записаны? Отменить запись</button>
+      </div>
+      <div class="title-row">
+        <div class="icon" id="sectionIcon">♡</div>
+        <h2 class="card-title" id="sectionTitle">Выберите услугу</h2>
+      </div>
+      <p class="error hidden" id="errorBox"></p>
+      <div id="content"></div>
+    </section>
+  </div>
+
+<script>
+const state = {
+  step: 1,
+  services: [],
+  dates: [],
+  slots: [],
+  selectedService: null,
+  selectedDate: '',
+  selectedTime: '',
+  clientName: '',
+  notes: '',
+  datePage: 0,
+  cancelMode: false,
+  cancelResults: [],
+};
+
+const content = document.getElementById('content');
+const errorBox = document.getElementById('errorBox');
+const sectionTitle = document.getElementById('sectionTitle');
+const sectionIcon = document.getElementById('sectionIcon');
+const homeActionBar = document.getElementById('homeActionBar');
+
+document.getElementById('showCancelModeBtn').onclick = () => {
+  state.cancelMode = true;
+  renderCancelSearch();
+};
+
+function showError(text){ errorBox.textContent = text; errorBox.classList.remove('hidden'); }
+function clearError(){ errorBox.textContent = ''; errorBox.classList.add('hidden'); }
+function api(url, options={}){
+  return fetch(url, options).then(async res => {
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.detail || 'Ошибка сервера');
+    return data;
+  });
+}
+function updateSteps(){
+  for(let i=1;i<=4;i++) document.getElementById('step'+i).classList.toggle('active', i===state.step || (state.step===4 && i===4));
+}
+function monthName(dateText){
+  const d = new Date(dateText + 'T00:00:00');
+  return d.toLocaleDateString('ru-RU',{month:'long'}).toUpperCase();
+}
+function weekdayShort(dateText){
+  const d = new Date(dateText + 'T00:00:00');
+  return d.toLocaleDateString('ru-RU',{weekday:'short'}).replace('.', '');
+}
+function dayNumber(dateText){
+  const d = new Date(dateText + 'T00:00:00');
+  return d.getDate();
+}
+function setSection(title, icon='♡'){ sectionTitle.textContent = title; sectionIcon.textContent = icon; }
+function renderHomeTopBar(){ homeActionBar.classList.toggle('hidden', state.step !== 1 || state.cancelMode); }
+function goToStep(step){ state.step = step; updateSteps(); renderHomeTopBar(); if(step===1) renderServices(); if(step===2) renderDates(); if(step===3) renderSlots(); if(step===4) renderForm(); }
+
+async function loadServices(){ state.services = await api('/api/services'); }
+async function loadDates(){ state.dates = await api('/api/dates'); }
+async function loadSlots(){ state.slots = await api('/api/slots?date=' + encodeURIComponent(state.selectedDate)); }
+
+function renderServices(){
+  state.cancelMode = false;
+  clearError(); renderHomeTopBar(); setSection('Выберите услугу', '♡');
+  if(!state.services.length){ content.innerHTML = '<div class="helper">Загрузка услуг...</div>'; loadServices().then(renderServices).catch(e => showError('Не удалось загрузить услуги. ' + e.message)); return; }
+  const note = '<div class="note-box"><b>Важно:</b> Наращивание нескольких ногтей укажите, пожалуйста, в комментарии при записи.</div>';
+  content.innerHTML = '<div class="services">' + state.services.map(item => `\
+    <div class="service ${state.selectedService && state.selectedService.service_id===item.service_id ? 'selected' : ''}" data-id="${item.service_id}">\
+      <div class="service-top">\
+        <div>\
+          <div class="service-name">${item.name}</div>\
+          <div class="meta">${item.duration_min} минут</div>\
+        </div>\
+        <div class="price">${item.price} €</div>\
+      </div>\
+    </div>`).join('') + '</div>' + note;
+  document.querySelectorAll('.service').forEach(el => {
+    el.onclick = () => {
+      state.selectedService = state.services.find(s => s.service_id === el.dataset.id);
+      state.selectedDate = '';
+      state.selectedTime = '';
+      state.datePage = 0;
+      goToStep(2);
     };
+  });
+}
 
-    const content = document.getElementById("content");
-    const errorBox = document.getElementById("error");
-    const nextBtn = document.getElementById("nextBtn");
-    const backBtn = document.getElementById("backBtn");
-    const cardTitle = document.getElementById("cardTitle");
-    const cardIcon = document.getElementById("cardIcon");
+function renderDates(){
+  clearError(); renderHomeTopBar(); setSection('Выберите дату', '☷');
+  if(!state.dates.length){ content.innerHTML = '<div class="helper">Загрузка дат...</div>'; loadDates().then(renderDates).catch(e => showError('Не удалось загрузить даты. ' + e.message)); return; }
+  if(!state.dates.length){ content.innerHTML = '<div class="helper">Свободных дат пока нет.</div>'; return; }
+  const pageSize = window.innerWidth <= 720 ? 4 : 7;
+  const maxPage = Math.max(0, Math.ceil(state.dates.length / pageSize) - 1);
+  if(state.datePage > maxPage) state.datePage = maxPage;
+  const chunk = state.dates.slice(state.datePage * pageSize, state.datePage * pageSize + pageSize);
+  const month = chunk[0] ? monthName(chunk[0]) : '';
+  content.innerHTML = `
+    <div class="date-toolbar"><div class="month-label">${month}</div></div>
+    <div class="date-grid">
+      <button class="nav-btn" id="prevDates" ${state.datePage===0?'disabled':''}>‹</button>
+      ${chunk.map(date => `
+        <button class="date-btn ${state.selectedDate===date?'selected':''}" data-date="${date}">
+          <strong>${dayNumber(date)}</strong>
+          <span>${weekdayShort(date)}</span>
+        </button>`).join('')}
+      <button class="nav-btn" id="nextDates" ${state.datePage===maxPage?'disabled':''}>›</button>
+    </div>
+    <p class="helper">Выберите дату, затем свободное время.</p>
+    <div class="buttons"><button class="btn btn-secondary" id="backBtn">Назад</button><div></div></div>
+  `;
+  document.getElementById('prevDates').onclick = () => { state.datePage--; renderDates(); };
+  document.getElementById('nextDates').onclick = () => { state.datePage++; renderDates(); };
+  document.getElementById('backBtn').onclick = () => goToStep(1);
+  document.querySelectorAll('.date-btn').forEach(el => {
+    el.onclick = () => { state.selectedDate = el.dataset.date; state.selectedTime=''; goToStep(3); };
+  });
+}
 
-    function showError(message) {
-      errorBox.textContent = message;
-      errorBox.classList.remove("hidden");
-    }
-
-    function clearError() {
-      errorBox.textContent = "";
-      errorBox.classList.add("hidden");
-    }
-
-    async function api(url, options) {
-      const response = await fetch(url, options);
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(data?.detail || "Ошибка сервера");
-      }
-
-      return data;
-    }
-
-    function updateSteps() {
-      [1, 2, 3, 4].forEach((n) => {
-        document.getElementById(`step${n}`).classList.toggle("active", n === state.step);
-      });
-    }
-
-    function setNextEnabled(enabled) {
-      nextBtn.disabled = !enabled;
-      nextBtn.classList.toggle("enabled", enabled);
-    }
-
-    function goToStep(step) {
-      state.cancelMode = false;
-      state.step = step;
-      updateSteps();
-
-      if (step === 1) renderServices();
-      if (step === 2) renderDates();
-      if (step === 3) renderSlots();
-      if (step === 4) renderClientForm();
-    }
-
-    function renderOptionList(items, selectedValue, valueKey, titleFn, metaFn = null) {
-      return `
-        <div class="options">
-          ${items.map((item) => {
-            const value = item[valueKey];
-            const selected = value === selectedValue ? "selected" : "";
-            const meta = metaFn ? `<div class="option-meta">${metaFn(item)}</div>` : "";
-
-            return `
-              <div class="option ${selected}" data-value="${value}">
-                <div class="option-main">${titleFn(item)}</div>
-                ${meta}
-              </div>
-            `;
-          }).join("")}
-        </div>
-      `;
-    }
-
-
-    function renderCancelLookup() {
-      clearError();
-      state.cancelMode = true;
-      state.step = 4;
-      updateSteps();
-
-      cardTitle.textContent = "Отменить запись";
-      cardIcon.textContent = "×";
-      backBtn.classList.remove("hidden");
-      nextBtn.classList.add("hidden");
-
+function renderSlots(){
+  clearError(); renderHomeTopBar(); setSection('Выберите время', '◷');
+  content.innerHTML = '<div class="helper">Загрузка времени...</div>';
+  loadSlots().then(() => {
+    if(!state.slots.length){
       content.innerHTML = `
-        <div class="lookup-card">
-          <b>Найдите свою запись</b><br>
-          Введите имя, которое вы указали при записи.
-        </div>
-
-        <div class="form-grid" style="margin-top: 18px;">
-          <input id="lookupName" placeholder="Ваше имя">
-        </div>
-
-        <button class="primary enabled" id="lookupBtn">Найти запись</button>
-
-        <div id="lookupResults" style="margin-top: 20px;"></div>
-      `;
-
-      document.getElementById("lookupBtn").onclick = searchBookingByName;
+        <div class="helper">На эту дату свободного времени нет. Выберите другую дату.</div>
+        <div class="buttons"><button class="btn btn-secondary" id="backBtn">Назад</button><div></div></div>`;
+      document.getElementById('backBtn').onclick = () => goToStep(2);
+      return;
     }
-
-    async function searchBookingByName() {
-      clearError();
-
-      const name = document.getElementById("lookupName")?.value.trim();
-      const resultsBox = document.getElementById("lookupResults");
-
-      if (!name || name.length < 2) {
-        showError("Введите имя минимум из 2 символов.");
-        return;
-      }
-
-      resultsBox.innerHTML = "Ищем запись...";
-
-      try {
-        const results = await api(`/api/bookings/search?client_name=${encodeURIComponent(name)}`);
-
-        if (!results.length) {
-          resultsBox.innerHTML = `
-            <div class="lookup-card">
-              Активные записи не найдены. Проверьте имя или напишите мастеру.
-            </div>
-          `;
-          return;
-        }
-
-        resultsBox.innerHTML = results.map((booking) => `
-          <div class="booking-result">
-            <b>${booking.service_name}</b><br>
-            ${booking.date}, ${booking.time}<br>
-            Имя: ${booking.client_name}<br>
-            Номер записи: ${booking.booking_id}
-            ${booking.notes ? `<br>Комментарий: ${booking.notes}` : ""}
-
-            <button class="cancel-button" onclick="cancelBooking('${booking.booking_id}')">
-              Отменить эту запись
-            </button>
-          </div>
-        `).join("");
-      } catch (error) {
-        resultsBox.innerHTML = "";
-        showError("Не удалось найти запись. " + error.message);
-      }
-    }
-
-
-    async function renderServices() {
-      clearError();
-      cardTitle.textContent = "Выберите услугу";
-      cardIcon.textContent = "♡";
-      content.innerHTML = "Загрузка услуг...";
-      backBtn.classList.add("hidden");
-      nextBtn.classList.add("hidden");
-      setNextEnabled(false);
-
-      try {
-        state.services = await api("/api/services");
-
-        if (!state.services.length) {
-          content.innerHTML = "";
-          showError("В таблице нет активных услуг.");
-          return;
-        }
-
-        content.innerHTML = renderOptionList(
-          state.services,
-          state.selectedService?.service_id,
-          "service_id",
-          (item) => `<span>${item.name}</span><span>${item.price} €</span>`,
-          (item) => `${item.duration_min} минут`
-        );
-
-        content.innerHTML += `
-          <div class="lookup-card">
-            Уже записывались и хотите отменить?
-            <br>
-            <button class="link-button" onclick="renderCancelLookup()">Найти и отменить запись</button>
-          </div>
-        `;
-
-        document.querySelectorAll(".option").forEach((el) => {
-          el.onclick = () => {
-            state.selectedService = state.services.find((s) => s.service_id === el.dataset.value);
-            state.selectedDate = null;
-            state.selectedTime = null;
-            goToStep(2);
-          };
-        });
-      } catch (error) {
-        content.innerHTML = "";
-        showError("Не удалось загрузить услуги. " + error.message);
-      }
-    }
-
-
-    function parseDateISO(dateText) {
-      const parts = String(dateText).split("-");
-      if (parts.length !== 3) return null;
-
-      const year = Number(parts[0]);
-      const month = Number(parts[1]) - 1;
-      const day = Number(parts[2]);
-
-      if (!year || month < 0 || !day) return null;
-
-      return new Date(year, month, day);
-    }
-
-    function formatWeekday(dateText) {
-      const date = parseDateISO(dateText);
-      if (!date) return "";
-
-      const weekdays = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-      return weekdays[date.getDay()];
-    }
-
-    function formatDay(dateText) {
-      const date = parseDateISO(dateText);
-      if (!date) return dateText;
-
-      return String(date.getDate());
-    }
-
-    function formatMonth(dateText) {
-      const date = parseDateISO(dateText);
-      if (!date) return "";
-
-      const months = [
-        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
-      ];
-
-      return months[date.getMonth()];
-    }
-
-    function visibleDates() {
-      return state.dates.slice(state.visibleDateStart, state.visibleDateStart + 7);
-    }
-
-    async function renderDates() {
-      clearError();
-      cardTitle.textContent = "Выберите дату";
-      cardIcon.textContent = "📅";
-      content.innerHTML = "Загрузка дат...";
-      backBtn.classList.remove("hidden");
-      nextBtn.classList.add("hidden");
-      setNextEnabled(false);
-
-      try {
-        state.dates = await api("/api/dates");
-
-        if (!state.dates.length) {
-          content.innerHTML = "";
-          showError("Свободных дат пока нет.");
-          return;
-        }
-
-        if (state.visibleDateStart >= state.dates.length) {
-          state.visibleDateStart = 0;
-        }
-
-        const datesToShow = visibleDates();
-        const monthLabel = datesToShow.length ? formatMonth(datesToShow[0]) : "";
-
-        content.innerHTML = `
-          <div class="month-label">${monthLabel}</div>
-
-          <div class="date-strip">
-            <button class="calendar-arrow" id="prevDates" ${state.visibleDateStart === 0 ? "disabled" : ""}>‹</button>
-
-            <div class="date-list">
-              ${datesToShow.map((date) => `
-                <div class="date-card ${date === state.selectedDate ? "selected" : ""}" data-value="${date}">
-                  <div class="date-day">${formatDay(date)}</div>
-                  <div class="date-weekday">${formatWeekday(date)}</div>
-                </div>
-              `).join("")}
-            </div>
-
-            <button class="calendar-arrow" id="nextDates" ${state.visibleDateStart + 7 >= state.dates.length ? "disabled" : ""}>›</button>
-          </div>
-
-          <div class="calendar-note">Выберите дату, затем свободное время.</div>
-        `;
-
-        document.querySelectorAll(".date-card").forEach((el) => {
-          el.onclick = () => {
-            state.selectedDate = el.dataset.value;
-            state.selectedTime = null;
-            goToStep(3);
-          };
-        });
-
-        document.getElementById("prevDates").onclick = () => {
-          state.visibleDateStart = Math.max(0, state.visibleDateStart - 7);
-          renderDates();
-        };
-
-        document.getElementById("nextDates").onclick = () => {
-          state.visibleDateStart = Math.min(state.dates.length - 1, state.visibleDateStart + 7);
-          renderDates();
-        };
-      } catch (error) {
-        content.innerHTML = "";
-        showError("Не удалось загрузить даты. " + error.message);
-      }
-    }
-
-    async function renderSlots() {
-      clearError();
-      cardTitle.textContent = "Выберите время";
-      cardIcon.textContent = "🕒";
-      content.innerHTML = "Загрузка времени...";
-      backBtn.classList.remove("hidden");
-      nextBtn.classList.add("hidden");
-      setNextEnabled(false);
-
-      try {
-        state.slots = await api(`/api/slots?date=${encodeURIComponent(state.selectedDate)}`);
-
-        if (!state.slots.length) {
-          content.innerHTML = "";
-          showError("На эту дату нет свободного времени.");
-          return;
-        }
-
-        content.innerHTML = `
-          <div class="summary">
-            <b>Дата:</b> ${state.selectedDate}
-          </div>
-
-          <div class="time-grid">
-            ${state.slots.map((item) => `
-              <div class="time-chip" data-value="${item.time}">${item.time}</div>
-            `).join("")}
-          </div>
-        `;
-
-        document.querySelectorAll(".time-chip").forEach((el) => {
-          el.onclick = () => {
-            state.selectedTime = el.dataset.value;
-            goToStep(4);
-          };
-        });
-      } catch (error) {
-        content.innerHTML = "";
-        showError("Не удалось загрузить время. " + error.message);
-      }
-    }
-
-    function renderClientForm() {
-      clearError();
-      cardTitle.textContent = "Ваши данные";
-      cardIcon.textContent = "✓";
-      backBtn.classList.remove("hidden");
-      nextBtn.classList.remove("hidden");
-      nextBtn.textContent = "Записаться";
-      setNextEnabled(true);
-
-      content.innerHTML = `
-        <div class="summary">
-          <b>Услуга:</b> ${state.selectedService.name}<br>
-          <b>Дата:</b> ${state.selectedDate}<br>
-          <b>Время:</b> ${state.selectedTime}
-        </div>
-
-        <div class="form-grid">
-          <input id="clientName" placeholder="Ваше имя" value="${state.clientName}">
-          <textarea id="notes" placeholder="Комментарий, если нужно">${state.notes}</textarea>
-        </div>
-      `;
-
-      document.getElementById("clientName").oninput = (e) => state.clientName = e.target.value;
-      document.getElementById("notes").oninput = (e) => state.notes = e.target.value;
-    }
-
-
-    async function cancelBooking(bookingId) {
-      const confirmed = confirm("Отменить запись? Это действие освободит время для других клиентов.");
-
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        const result = await api("/api/bookings/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ booking_id: bookingId })
-        });
-
-        content.innerHTML = `
-          <div class="success">
-            <div class="success-title">Запись отменена</div>
-            <div>
-              Номер записи: ${result.booking_id}<br><br>
-              Это время снова доступно для записи.
-            </div>
-          </div>
-        `;
-      } catch (error) {
-        showError("Не удалось отменить запись. " + error.message);
-      }
-    }
-
-    async function submitBooking() {
-      clearError();
-
-      const name = document.getElementById("clientName")?.value.trim();
-      const notes = document.getElementById("notes")?.value.trim();
-
-      if (!name) {
-        showError("Введите имя.");
-        return;
-      }
-
-      nextBtn.textContent = "Отправляем...";
-      nextBtn.disabled = true;
-
-      try {
-        const result = await api("/api/bookings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_name: name,
-            notes,
-            service_id: state.selectedService.service_id,
-            date: state.selectedDate,
-            time: state.selectedTime
-          })
-        });
-
-        state.step = 4;
-        updateSteps();
-        cardTitle.textContent = "Запись создана";
-        cardIcon.textContent = "✓";
-
-        const telegramButton = result.telegram_reminder_url
-          ? `<a class="tg-button" href="${result.telegram_reminder_url}" target="_blank" rel="noopener">Получить напоминание в Telegram</a>`
-          : "";
-
-        content.innerHTML = `
-          <div class="success">
-            <div class="success-title">Вы записаны</div>
-            <div>
-              <b>${result.service_name}</b><br>
-              ${result.date}, ${result.time}<br><br>
-              Номер записи: ${result.booking_id}
-            </div>
-
-            <div class="summary" style="text-align: left;">
-              <b>Если нужно отменить запись позже:</b><br>
-              сохраните эту ссылку или сделайте скриншот экрана.
-              <br><br>
-              <a href="${result.cancel_url}" target="_blank" rel="noopener">Открыть страницу отмены записи</a>
-            </div>
-
-            <div class="summary" style="margin-top: 22px; text-align: left;">
-              <b>Чтобы не забыть:</b><br>
-              добавьте запись в календарь или сделайте скриншот этого экрана.
-            </div>
-
-            <div class="summary" style="text-align: left;">
-              <b>Хотите напоминание за сутки?</b><br>
-              Нажмите кнопку ниже, откройте Telegram-бота и нажмите Start.
-              ${telegramButton}
-            </div>
-          </div>
-        `;
-
-        document.getElementById("buttons").classList.add("hidden");
-      } catch (error) {
-        nextBtn.textContent = "Записаться";
-        nextBtn.disabled = false;
-        setNextEnabled(true);
-        showError("Не удалось создать запись. " + error.message);
-      }
-    }
-
-    nextBtn.onclick = () => {
-      if (state.step === 4) submitBooking();
-    };
-
-    backBtn.onclick = () => {
-      if (state.cancelMode) {
-        goToStep(1);
-        return;
-      }
-
-      if (state.step > 1) goToStep(state.step - 1);
-    };
-
-    goToStep(1);
-  </script>
+    content.innerHTML = `
+      <div class="slots">${state.slots.map(slot => `
+        <div class="slot ${state.selectedTime===slot.time?'selected':''}" data-time="${slot.time}">
+          <div class="slot-time">${slot.time}</div>
+        </div>`).join('')}</div>
+      <p class="helper">После выбора времени откроется форма записи.</p>
+      <div class="buttons"><button class="btn btn-secondary" id="backBtn">Назад</button><div></div></div>`;
+    document.getElementById('backBtn').onclick = () => goToStep(2);
+    document.querySelectorAll('.slot').forEach(el => {
+      el.onclick = () => { state.selectedTime = el.dataset.time; goToStep(4); };
+    });
+  }).catch(e => showError('Не удалось загрузить время. ' + e.message));
+}
+
+function renderForm(){
+  clearError(); renderHomeTopBar(); setSection('Ваши данные', '✓');
+  content.innerHTML = `
+    <div class="summary">
+      <b>Услуга:</b> ${state.selectedService.name}<br>
+      <b>Дата:</b> ${state.selectedDate}<br>
+      <b>Время:</b> ${state.selectedTime}
+    </div>
+    <div class="form">
+      <input id="clientName" placeholder="Ваше имя" value="${state.clientName || ''}">
+      <textarea id="notes" placeholder="Комментарий, если нужно">${state.notes || ''}</textarea>
+    </div>
+    <div class="buttons">
+      <button class="btn btn-secondary" id="backBtn">Назад</button>
+      <button class="btn btn-primary" id="submitBtn">Записаться</button>
+    </div>`;
+  document.getElementById('clientName').oninput = e => state.clientName = e.target.value;
+  document.getElementById('notes').oninput = e => state.notes = e.target.value;
+  document.getElementById('backBtn').onclick = () => goToStep(3);
+  document.getElementById('submitBtn').onclick = submitBooking;
+}
+
+async function submitBooking(){
+  clearError();
+  if(!state.clientName.trim()){ showError('Введите, пожалуйста, имя.'); return; }
+  const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.textContent = 'Сохраняем...';
+  try {
+    const result = await api('/api/bookings', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        client_name: state.clientName.trim(),
+        notes: state.notes.trim(),
+        service_id: state.selectedService.service_id,
+        date: state.selectedDate,
+        time: state.selectedTime,
+      })
+    });
+    renderSuccess(result);
+  } catch(e){
+    btn.disabled = false; btn.textContent = 'Записаться';
+    showError('Не удалось создать запись. ' + e.message);
+  }
+}
+
+function renderSuccess(result){
+  state.step = 4; updateSteps(); renderHomeTopBar(); clearError(); setSection('Запись создана', '✓');
+  const reminderBtn = result.telegram_reminder_url ? `<a class="action-link" href="${result.telegram_reminder_url}" target="_blank" rel="noopener">Получать напоминание в Telegram</a>` : '';
+  const cancelBtn = result.cancel_url ? `<a class="action-link secondary" href="${result.cancel_url}" target="_blank" rel="noopener">Отменить запись</a>` : '';
+  content.innerHTML = `
+    <div class="success-title">Вы записаны</div>
+    <div class="success-main">
+      <b>${result.service_name}</b><br>
+      ${result.date}, ${result.time}<br><br>
+      Номер записи: <b>${result.booking_id}</b>
+    </div>
+    <div class="stack">
+      <div class="soft-block"><b>Чтобы не забыть:</b><br>добавьте запись в календарь или сделайте скриншот этого экрана.</div>
+      <div class="soft-block"><b>Хотите напоминание за сутки?</b><br>Нажмите кнопку ниже, откройте Telegram-бота и нажмите Start.</div>
+      ${reminderBtn}
+      ${cancelBtn}
+      <button class="btn btn-secondary" id="newBookingBtn">Новая запись</button>
+    </div>`;
+  document.getElementById('newBookingBtn').onclick = () => {
+    state.selectedService = null; state.selectedDate=''; state.selectedTime=''; state.clientName=''; state.notes=''; state.datePage=0; goToStep(1);
+  };
+}
+
+function renderCancelSearch(){
+  state.step = 1; updateSteps(); homeActionBar.classList.add('hidden'); clearError(); setSection('Отмена записи', '↺');
+  content.innerHTML = `
+    <div class="helper" style="margin-bottom:14px">Введите имя, на которое была сделана запись.</div>
+    <div class="cancel-form">
+      <input id="cancelName" placeholder="Ваше имя">
+      <button class="btn btn-primary" id="searchCancelBtn">Найти</button>
+    </div>
+    <div id="cancelResults"></div>
+    <div style="margin-top:16px"><button class="btn btn-secondary" id="cancelBackHome">Назад к записи</button></div>`;
+  document.getElementById('searchCancelBtn').onclick = searchCancelBookings;
+  document.getElementById('cancelBackHome').onclick = () => { state.cancelMode = false; goToStep(1); };
+}
+
+async function searchCancelBookings(){
+  clearError();
+  const name = document.getElementById('cancelName').value.trim();
+  if(name.length < 2){ showError('Введите минимум 2 символа имени.'); return; }
+  const wrap = document.getElementById('cancelResults');
+  wrap.innerHTML = '<div class="helper">Ищем записи...</div>';
+  try {
+    const results = await api('/api/bookings/search?client_name=' + encodeURIComponent(name));
+    state.cancelResults = results;
+    if(!results.length){ wrap.innerHTML = '<div class="helper">Активных записей не найдено.</div>'; return; }
+    wrap.innerHTML = '<div class="cancel-results">' + results.map(item => `
+      <div class="cancel-item" data-booking-id="${item.booking_id}">
+        <div class="cancel-top"><div><b>${item.service_name}</b><div class="meta">${item.date}, ${item.time}</div></div><div class="pill">${item.booking_id}</div></div>
+        ${item.notes ? `<div class="meta">Комментарий: ${item.notes}</div>` : ''}
+        <div style="margin-top:12px"><button class="btn btn-primary cancelNowBtn" data-id="${item.booking_id}">Отменить запись</button></div>
+      </div>`).join('') + '</div>';
+    document.querySelectorAll('.cancelNowBtn').forEach(btn => {
+      btn.onclick = () => cancelBooking(btn.dataset.id);
+    });
+  } catch(e){ showError('Не удалось найти запись. ' + e.message); wrap.innerHTML=''; }
+}
+
+async function cancelBooking(bookingId){
+  if(!confirm('Точно отменить запись?')) return;
+  clearError();
+  try {
+    await api('/api/bookings/cancel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({booking_id: bookingId})});
+    alert('Запись отменена.');
+    searchCancelBookings();
+  } catch(e){ showError('Не удалось отменить запись. ' + e.message); }
+}
+
+updateSteps();
+renderServices();
+</script>
 </body>
 </html>
