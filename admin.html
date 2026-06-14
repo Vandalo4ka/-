@@ -149,13 +149,32 @@ function monthDay(dateText){
   return new Date(dateText + 'T00:00:00').toLocaleDateString('ru-RU',{day:'numeric', month:'short'}).replace('.', '');
 }
 
+function todayISO(){
+  return toISODate(new Date());
+}
+
+function isWeekdayDate(dateText){
+  const d = new Date(dateText + 'T00:00:00');
+  const day = d.getDay();
+  return day >= 1 && day <= 5;
+}
+
 
 async function loadDates(){
   clearError();
   const dates = await api('/api/admin/dates');
   state.dates = dates;
-  if(!state.selectedDate && dates.length) state.selectedDate = dates[0];
-  if(!state.weekStart && state.selectedDate) state.weekStart = mondayOf(state.selectedDate);
+  const today = todayISO();
+
+  // Админка всегда открывается на текущей неделе.
+  if(!state.weekStart){
+    state.weekStart = mondayOf(today);
+  }
+
+  if(!state.selectedDate){
+    state.selectedDate = isWeekdayDate(today) ? today : state.weekStart;
+  }
+
   renderDates();
 }
 
