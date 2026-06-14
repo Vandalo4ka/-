@@ -71,6 +71,12 @@ class AdminDayUpdateRequest(BaseModel):
     date: str
 
 
+class AdminMoveBookingRequest(BaseModel):
+    booking_id: str
+    new_date: str
+    new_time: str
+
+
 def check_admin_key(key: str | None = None):
     expected = ADMIN_KEY.strip()
     if not expected:
@@ -852,6 +858,149 @@ def admin_open_day(request: AdminDayUpdateRequest, key: str | None = Query(defau
         worksheet.update_cell(row_index, col_index, updated)
         clear_cache()
         return {'status': 'ok', 'date': normalize_date(request.date), 'action': 'opened'}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/move-booking")
+def admin_move_booking(request: AdminMoveBookingRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        booking_id = str(request.booking_id).strip()
+        new_date = normalize_date(request.new_date)
+        new_time = normalize_time(request.new_time)
+
+        if not booking_id:
+            raise HTTPException(status_code=400, detail="Booking ID is required")
+
+        if is_weekend(new_date):
+            raise HTTPException(status_code=409, detail="Weekend dates are not available")
+
+        if is_past_date(new_date) or is_past_or_current_time_for_today(new_date, new_time):
+            raise HTTPException(status_code=409, detail="This time is no longer available")
+
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet("bookings")
+        row_number, booking = find_booking_by_id(bookings_ws, booking_id)
+
+        if not row_number:
+            raise HTTPException(status_code=404, detail="Booking not found")
+
+        current_status = str(booking.get("status", "")).strip().casefold()
+        if current_status in ["cancelled", "canceled", "отменено"]:
+            raise HTTPException(status_code=409, detail="This booking is already cancelled")
+
+        old_date = normalize_date(str(booking.get("date", "")))
+        old_time = normalize_time(str(booking.get("time", "")))
+
+        if old_date == new_date and old_time == new_time:
+            return {
+                "status": "unchanged",
+                "booking_id": booking_id,
+                "date": new_date,
+                "time": new_time,
+            }
+
+        # Check that the new time is free.
+        new_calendar_ws = get_calendar_worksheet_for_date(new_date)
+        new_row_index, new_col_index, new_cell_text = find_calendar_cell_by_date(new_calendar_ws, new_date)
+
+        if not new_row_index or not new_col_index:
+            raise HTTPException(status_code=404, detail="New date not found in schedule")
+
+        new_time_line_index, new_current_status = find_time_in_cell(new_cell_text, new_time)
+
+        if new_time_line_index is None:
+            raise HTTPException(status_code=404, detail="New time not found in schedule")
+
+        if not is_time_free(new_current_status):
+            raise HTTPException(status_code=409, detail="New time is not free")
+
+        client_name = str(booking.get("client_name", "")).strip()
+        service_name = str(booking.get("service_name", "")).strip()
+
+        # Price may not be stored in bookings, so try to get it from clients first.
+        price = ""
+        try:
+            clients_ws = get_or_create_clients_worksheet(spreadsheet)
+            for client_row in clients_ws.get_all_records():
+                if str(client_row.get("booking_id", "")).strip() == booking_id:
+                    price = normalize_price(client_row.get("price", ""))
+                    break
+        except Exception:
+            price = ""
+
+        booked_text = f"{client_name} — {service_name}"
+        if price:
+            booked_text += f" — {price} €"
+
+        # Free old calendar slot.
+        try:
+            old_calendar_ws = get_calendar_worksheet_for_date(old_date)
+            old_row_index, old_col_index, old_cell_text = find_calendar_cell_by_date(old_calendar_ws, old_date)
+            if old_row_index and old_col_index:
+                old_updated_cell = replace_time_line(old_cell_text, old_time, "free")
+                old_calendar_ws.update_cell(old_row_index, old_col_index, old_updated_cell)
+        except Exception:
+            pass
+
+        # Book new calendar slot.
+        new_updated_cell = replace_time_line(new_cell_text, new_time, booked_text)
+        new_calendar_ws.update_cell(new_row_index, new_col_index, new_updated_cell)
+
+        # Update bookings.
+        update_columns_by_header(bookings_ws, row_number, {
+            "date": new_date,
+            "time": new_time,
+        })
+
+        # Update clients sheet.
+        try:
+            clients_ws = get_or_create_clients_worksheet(spreadsheet)
+            for client_row_number, client_row in enumerate(clients_ws.get_all_records(), start=2):
+                if str(client_row.get("booking_id", "")).strip() == booking_id:
+                    update_columns_by_header(clients_ws, client_row_number, {
+                        "date": new_date,
+                        "time": new_time,
+                    })
+                    break
+        except Exception:
+            pass
+
+        clear_cache()
+
+        message = (
+            "Запись перенесена\\n\\n"
+            f"Клиент: {client_name}\\n"
+            f"Услуга: {service_name}\\n"
+            f"Было: {old_date}, {old_time}\\n"
+            f"Стало: {new_date}, {new_time}\\n"
+            f"Номер записи: {booking_id}"
+        )
+        send_master_notification(message)
+
+        client_chat_id = str(booking.get("telegram_chat_id", "")).strip()
+        if client_chat_id:
+            send_telegram_message(
+                client_chat_id,
+                "Ваша запись перенесена.\\n\\n"
+                f"Услуга: {service_name}\\n"
+                f"Новая дата: {new_date}\\n"
+                f"Новое время: {new_time}"
+            )
+
+        return {
+            "status": "moved",
+            "booking_id": booking_id,
+            "old_date": old_date,
+            "old_time": old_time,
+            "new_date": new_date,
+            "new_time": new_time,
+        }
+
     except HTTPException:
         raise
     except Exception as exc:
