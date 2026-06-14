@@ -131,7 +131,7 @@ async function loadSchedule(){
       } else {
         meta = `<div class="meta"><b>${item.client_name || 'Клиент'}</b><br>${item.service_name || ''}${item.price ? '<br>' + item.price : ''}${item.notes ? '<br>Комментарий: ' + item.notes : ''}${item.booking_id ? '<br>ID: ' + item.booking_id : ''}</div>`;
         actions = `
-          <button class="btn btn-outline moveBtn" data-booking-id="${item.booking_id || ''}" data-date="${item.date}" data-time="${item.time}">Перенести</button>
+          <button class="btn btn-outline moveBtn" data-booking-id="${item.booking_id || ''}" data-date="${item.date}" data-time="${item.time}">Изменить дату/время</button>
           <button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить запись</button>
         `;
       }
@@ -152,13 +152,13 @@ async function moveBooking(bookingId, currentDate, currentTime){
     return;
   }
 
-  const newDate = prompt('Введите новую дату в формате YYYY-MM-DD:', currentDate);
+  const newDate = prompt('Введите новую дату в формате YYYY-MM-DD, например 2026-07-10:', currentDate);
   if(!newDate) return;
 
-  const newTime = prompt('Введите новое время в формате HH:MM:', currentTime);
+  const newTime = prompt('Введите новое время в формате HH:MM, например 13:00:', currentTime);
   if(!newTime) return;
 
-  if(!confirm('Перенести запись на ' + newDate + ' в ' + newTime + '?')) return;
+  if(!confirm('Изменить дату/время запись на ' + newDate + ' в ' + newTime + '?')) return;
 
   try {
     await api('/api/admin/move-booking', {
