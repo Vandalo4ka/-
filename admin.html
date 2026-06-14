@@ -130,12 +130,55 @@ async function loadSchedule(){
         actions = `<button class="btn btn-outline actionBtn" data-action="unblock" data-time="${item.time}">Открыть</button>`;
       } else {
         meta = `<div class="meta"><b>${item.client_name || 'Клиент'}</b><br>${item.service_name || ''}${item.price ? '<br>' + item.price : ''}${item.notes ? '<br>Комментарий: ' + item.notes : ''}${item.booking_id ? '<br>ID: ' + item.booking_id : ''}</div>`;
-        actions = `<button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить запись</button>`;
+        actions = `
+          <button class="btn btn-outline moveBtn" data-booking-id="${item.booking_id || ''}" data-date="${item.date}" data-time="${item.time}">Перенести</button>
+          <button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить запись</button>
+        `;
       }
       return `<div class="slot ${item.type}"><div class="slot-top"><div class="time">${item.time}</div>${badge}</div>${meta}<div class="actions">${actions}</div></div>`;
     }).join('');
     document.querySelectorAll('.actionBtn').forEach(btn => btn.onclick = () => runAction(btn.dataset.action, btn.dataset.time));
+    document.querySelectorAll('.moveBtn').forEach(btn => {
+      btn.onclick = () => moveBooking(btn.dataset.bookingId, btn.dataset.date, btn.dataset.time);
+    });
   } catch(e){ showError(e.message); slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить расписание.</div>'; }
+}
+
+async function moveBooking(bookingId, currentDate, currentTime){
+  clearError();
+
+  if(!bookingId){
+    showError('Не найден номер записи.');
+    return;
+  }
+
+  const newDate = prompt('Введите новую дату в формате YYYY-MM-DD:', currentDate);
+  if(!newDate) return;
+
+  const newTime = prompt('Введите новое время в формате HH:MM:', currentTime);
+  if(!newTime) return;
+
+  if(!confirm('Перенести запись на ' + newDate + ' в ' + newTime + '?')) return;
+
+  try {
+    await api('/api/admin/move-booking', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        booking_id: bookingId,
+        new_date: newDate.trim(),
+        new_time: newTime.trim()
+      })
+    });
+
+    alert('Запись перенесена.');
+    await loadDates();
+    state.selectedDate = newDate.trim();
+    renderDates();
+    loadSchedule();
+  } catch(e){
+    showError('Не удалось перенести запись. ' + e.message);
+  }
 }
 
 async function runAction(action, time){
