@@ -644,8 +644,8 @@ async function changeFreeSlotTime(oldTime){
 function startMoveBooking(booking){
   clearError();
 
-  if(!booking.bookingId){
-    showError('Не найден номер записи.');
+  if(!booking.date || !booking.time){
+    showError('Не найдена дата или время записи.');
     return;
   }
 
@@ -699,7 +699,9 @@ async function moveBookingHere(newDate, newTime){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        booking_id: state.movingBooking.bookingId,
+        booking_id: state.movingBooking.bookingId || '',
+        old_date: state.movingBooking.date,
+        old_time: state.movingBooking.time,
         new_date: newDate,
         new_time: newTime
       })
