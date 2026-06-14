@@ -133,10 +133,14 @@ async function loadSchedule(){
             <button class="btn btn-primary moveHereBtn" data-date="${item.date}" data-time="${item.time}">
               Перенести сюда
             </button>
+            <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
             <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
           `;
         } else {
-          actions = `<button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>`;
+          actions = `
+            <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
+            <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
+          `;
         }
       } else if(item.type === 'blocked'){
         meta = '<div class="meta">Это время скрыто для клиентов.</div>';
@@ -173,8 +177,42 @@ async function loadSchedule(){
       btn.onclick = () => moveBookingHere(btn.dataset.date, btn.dataset.time);
     });
 
+    document.querySelectorAll('.changeTimeBtn').forEach(btn => {
+      btn.onclick = () => changeFreeSlotTime(btn.dataset.time);
+    });
+
     renderMovePanel();
   } catch(e){ showError(e.message); slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить расписание.</div>'; }
+}
+
+async function changeFreeSlotTime(oldTime){
+  clearError();
+
+  const newTime = prompt('Введите новое время в формате HH:MM:', oldTime);
+  if(!newTime) return;
+
+  if(newTime.trim() === oldTime){
+    return;
+  }
+
+  if(!confirm('Изменить свободное время ' + oldTime + ' на ' + newTime.trim() + '?')) return;
+
+  try {
+    await api('/api/admin/change-free-time', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        date: state.selectedDate,
+        old_time: oldTime,
+        new_time: newTime.trim()
+      })
+    });
+
+    await loadDates();
+    loadSchedule();
+  } catch(e){
+    showError('Не удалось изменить время. ' + e.message);
+  }
 }
 
 function startMoveBooking(booking){
