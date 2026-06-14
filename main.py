@@ -77,6 +77,12 @@ class AdminMoveBookingRequest(BaseModel):
     new_time: str
 
 
+class AdminChangeFreeTimeRequest(BaseModel):
+    date: str
+    old_time: str
+    new_time: str
+
+
 def check_admin_key(key: str | None = None):
     expected = ADMIN_KEY.strip()
     if not expected:
@@ -858,6 +864,81 @@ def admin_open_day(request: AdminDayUpdateRequest, key: str | None = Query(defau
         worksheet.update_cell(row_index, col_index, updated)
         clear_cache()
         return {'status': 'ok', 'date': normalize_date(request.date), 'action': 'opened'}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/change-free-time")
+def admin_change_free_time(request: AdminChangeFreeTimeRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        date_text = normalize_date(request.date)
+        old_time = normalize_time(request.old_time)
+        new_time = normalize_time(request.new_time)
+
+        if not new_time:
+            raise HTTPException(status_code=400, detail="New time is required")
+
+        if is_past_date(date_text) or is_past_or_current_time_for_today(date_text, new_time):
+            raise HTTPException(status_code=409, detail="This time is no longer available")
+
+        worksheet = get_calendar_worksheet_for_date(date_text)
+        row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, date_text)
+
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail="Date not found in schedule")
+
+        old_index, old_status = find_time_in_cell(cell_text, old_time)
+
+        if old_index is None:
+            raise HTTPException(status_code=404, detail="Old time not found")
+
+        old_type = status_type_from_text(old_status)
+
+        # Allow changing only free or blocked slots, not occupied bookings.
+        if old_type == "booked":
+            raise HTTPException(status_code=409, detail="Booked slot time cannot be changed here")
+
+        existing_index, existing_status = find_time_in_cell(cell_text, new_time)
+
+        if existing_index is not None and existing_index != old_index:
+            raise HTTPException(status_code=409, detail="This time already exists")
+
+        lines = str(cell_text or "").splitlines()
+        lines[old_index] = f"{new_time} {old_status}".rstrip()
+
+        # Keep date header first, then sort time lines by time.
+        header_lines = []
+        time_lines = []
+
+        for line in lines:
+            match = TIME_LINE_RE.match(str(line).strip())
+            if match:
+                time_lines.append(str(line).strip())
+            else:
+                header_lines.append(str(line))
+
+        time_lines = sorted(
+            time_lines,
+            key=lambda line: normalize_time(TIME_LINE_RE.match(line).group(1))
+        )
+
+        new_cell_text = "\n".join(header_lines + time_lines)
+        worksheet.update_cell(row_index, col_index, new_cell_text)
+
+        clear_cache()
+
+        return {
+            "status": "changed",
+            "date": date_text,
+            "old_time": old_time,
+            "new_time": new_time,
+            "slot_type": old_type,
+        }
+
     except HTTPException:
         raise
     except Exception as exc:
