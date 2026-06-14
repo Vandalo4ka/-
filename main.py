@@ -23,6 +23,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Madrid")
+ADMIN_KEY = os.getenv("ADMIN_KEY", "").strip()
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CACHE_TTL_SECONDS = 60
@@ -59,6 +60,85 @@ class BookingRequest(BaseModel):
 
 class CancelBookingRequest(BaseModel):
     booking_id: str
+
+
+class AdminSlotUpdateRequest(BaseModel):
+    date: str
+    time: str
+
+
+class AdminDayUpdateRequest(BaseModel):
+    date: str
+
+
+def check_admin_key(key: str | None = None):
+    expected = ADMIN_KEY.strip()
+    if not expected:
+        return
+    provided = (key or '').strip()
+    if provided != expected:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+
+def status_type_from_text(status_text: str) -> str:
+    value = str(status_text or '').strip().casefold()
+    if value in ['', 'free', 'свободно']:
+        return 'free'
+    if value == 'blocked':
+        return 'blocked'
+    return 'booked'
+
+
+def parse_booking_preview(status_text: str):
+    raw = str(status_text or '').strip()
+    parts = [p.strip() for p in raw.split('—')]
+    if len(parts) >= 3:
+        return {'client_name': parts[0], 'service_name': parts[1], 'price': parts[2]}
+    if len(parts) == 2:
+        return {'client_name': parts[0], 'service_name': parts[1], 'price': ''}
+    return {'client_name': '', 'service_name': raw, 'price': ''}
+
+
+def find_active_booking_by_date_time(bookings_ws, date_text: str, time_text: str):
+    target_date = normalize_date(date_text)
+    target_time = normalize_time(time_text)
+    for row_number, row in enumerate(bookings_ws.get_all_records(), start=2):
+        if normalize_date(str(row.get('date', ''))) != target_date:
+            continue
+        if normalize_time(str(row.get('time', ''))) != target_time:
+            continue
+        status = str(row.get('status', '')).strip().casefold()
+        if status in ['cancelled', 'canceled', 'отменено']:
+            continue
+        return row_number, row
+    return None, None
+
+
+def update_calendar_time_status(date_text: str, time_text: str, new_status: str, require_current_type: str | None = None):
+    worksheet = get_calendar_worksheet_for_date(date_text)
+    row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, date_text)
+    if not row_index or not col_index:
+        raise HTTPException(status_code=404, detail='Date not found in schedule')
+
+    line_index, current_status = find_time_in_cell(cell_text, time_text)
+    if line_index is None:
+        raise HTTPException(status_code=404, detail='Time not found in schedule')
+
+    current_type = status_type_from_text(current_status)
+    if require_current_type and current_type != require_current_type:
+        raise HTTPException(status_code=409, detail=f'Time is currently {current_type}')
+
+    worksheet.update_cell(row_index, col_index, replace_time_line(cell_text, time_text, new_status))
+    clear_cache()
+    return {'date': normalize_date(date_text), 'time': normalize_time(time_text), 'from': current_type, 'to': status_type_from_text(new_status), 'raw_status': new_status}
+
+
+def list_upcoming_dates(limit: int = 21):
+    try:
+        dates = get_dates()
+        return dates[:limit]
+    except Exception:
+        return []
 
 
 def readable_error(exc: Exception) -> str:
@@ -526,6 +606,12 @@ def index():
     return FileResponse("index.html")
 
 
+@app.get("/admin")
+def admin_page():
+    return FileResponse("admin.html")
+
+
+
 @app.get("/cancel")
 def cancel_page(booking_id: str = Query(...)):
     safe_booking_id = str(booking_id).strip()
@@ -598,6 +684,7 @@ def health():
         "schedule_mode": "calendar_grid",
         "past_dates_hidden": True,
         "past_times_today_hidden": True,
+        "admin_key_present": bool(ADMIN_KEY),
     }
 
 
@@ -658,6 +745,134 @@ async def telegram_webhook(request: Request):
     except Exception:
         send_telegram_message(chat_id, "Не удалось подключить напоминание. Попробуйте позже.")
         return {"ok": True}
+
+
+@app.get("/api/admin/dates")
+def admin_dates(key: str | None = Query(default=None)):
+    check_admin_key(key)
+    return list_upcoming_dates(31)
+
+
+@app.get("/api/admin/schedule")
+def admin_schedule(date: str = Query(...), key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        worksheet = get_calendar_worksheet_for_date(date)
+        row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, date)
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail='Date not found')
+
+        _, time_lines = parse_day_cell(cell_text)
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet('bookings')
+        items = []
+        for item in sorted(time_lines, key=lambda x: normalize_time(x['time'])):
+            slot_type = status_type_from_text(item['status'])
+            payload = {
+                'time': normalize_time(item['time']),
+                'type': slot_type,
+                'raw_status': item['status'],
+                'date': normalize_date(date),
+            }
+            if slot_type == 'booked':
+                _, booking = find_active_booking_by_date_time(bookings_ws, date, item['time'])
+                preview = parse_booking_preview(item['status'])
+                payload.update(preview)
+                if booking:
+                    payload.update({
+                        'booking_id': str(booking.get('booking_id', '')).strip(),
+                        'notes': str(booking.get('notes', '')).strip(),
+                        'status': str(booking.get('status', '')).strip(),
+                    })
+            items.append(payload)
+        return {'date': normalize_date(date), 'items': items}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/block")
+def admin_block(request: AdminSlotUpdateRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        return update_calendar_time_status(request.date, request.time, 'blocked', require_current_type='free')
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/unblock")
+def admin_unblock(request: AdminSlotUpdateRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        return update_calendar_time_status(request.date, request.time, 'free', require_current_type='blocked')
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/close-day")
+def admin_close_day(request: AdminDayUpdateRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        worksheet = get_calendar_worksheet_for_date(request.date)
+        row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, request.date)
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail='Date not found')
+        _, time_lines = parse_day_cell(cell_text)
+        updated = cell_text
+        for item in time_lines:
+            if status_type_from_text(item['status']) == 'free':
+                updated = replace_time_line(updated, item['time'], 'blocked')
+        worksheet.update_cell(row_index, col_index, updated)
+        clear_cache()
+        return {'status': 'ok', 'date': normalize_date(request.date), 'action': 'closed'}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/open-day")
+def admin_open_day(request: AdminDayUpdateRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        worksheet = get_calendar_worksheet_for_date(request.date)
+        row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, request.date)
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail='Date not found')
+        _, time_lines = parse_day_cell(cell_text)
+        updated = cell_text
+        for item in time_lines:
+            if status_type_from_text(item['status']) == 'blocked':
+                updated = replace_time_line(updated, item['time'], 'free')
+        worksheet.update_cell(row_index, col_index, updated)
+        clear_cache()
+        return {'status': 'ok', 'date': normalize_date(request.date), 'action': 'opened'}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/cancel-slot")
+def admin_cancel_slot(request: AdminSlotUpdateRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+    try:
+        spreadsheet = get_spreadsheet()
+        bookings_ws = spreadsheet.worksheet('bookings')
+        row_number, booking = find_active_booking_by_date_time(bookings_ws, request.date, request.time)
+        if not row_number:
+            raise HTTPException(status_code=404, detail='Active booking not found')
+        cancel_booking(CancelBookingRequest(booking_id=str(booking.get('booking_id', '')).strip()))
+        return {'status': 'cancelled', 'booking_id': str(booking.get('booking_id', '')).strip()}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 @app.get("/api/services")
