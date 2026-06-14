@@ -96,6 +96,12 @@ class AdminAddFreeSlotRequest(BaseModel):
     time: str
 
 
+class AdminUpdateServicePriceRequest(BaseModel):
+    service_id: str | None = ""
+    name: str | None = ""
+    price: str
+
+
 def check_admin_key(key: str | None = None):
     expected = ADMIN_KEY.strip()
     if not expected:
@@ -1015,6 +1021,98 @@ def append_admin_created_client_visit(
         notes or "",
         "new",
     ])
+
+
+
+def get_services_worksheet_for_admin():
+    spreadsheet = get_spreadsheet()
+    return spreadsheet.worksheet("services")
+
+
+def find_service_row_for_admin(services_ws, service_id: str = "", name: str = ""):
+    rows = services_ws.get_all_records()
+
+    service_id = str(service_id or "").strip()
+    name = str(name or "").strip()
+
+    for row_number, row in enumerate(rows, start=2):
+        current_id = str(row.get("service_id", "")).strip()
+        current_name = str(row.get("name", "")).strip()
+
+        if service_id and current_id == service_id:
+            return row_number, row
+
+        if name and current_name.casefold() == name.casefold():
+            return row_number, row
+
+    return None, None
+
+
+@app.get("/api/admin/services")
+def admin_services(key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        services_ws = get_services_worksheet_for_admin()
+        rows = services_ws.get_all_records()
+
+        result = []
+        for row in rows:
+            is_active = str(row.get("is_active", "")).strip().casefold()
+
+            if is_active and is_active not in ["true", "1", "yes", "да"]:
+                continue
+
+            result.append({
+                "service_id": str(row.get("service_id", "")).strip(),
+                "name": str(row.get("name", "")).strip(),
+                "duration_min": str(row.get("duration_min", "")).strip(),
+                "price": normalize_admin_price(row.get("price", "")),
+                "is_active": is_active,
+            })
+
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/services/update-price")
+def admin_update_service_price(request: AdminUpdateServicePriceRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        new_price = normalize_admin_price(request.price)
+
+        if new_price == "":
+            raise HTTPException(status_code=400, detail="Price is required")
+
+        services_ws = get_services_worksheet_for_admin()
+        row_number, service_row = find_service_row_for_admin(
+            services_ws,
+            service_id=str(request.service_id or "").strip(),
+            name=str(request.name or "").strip(),
+        )
+
+        if not row_number:
+            raise HTTPException(status_code=404, detail="Service not found")
+
+        update_columns_by_header(services_ws, row_number, {
+            "price": new_price,
+        })
+
+        clear_cache()
+
+        return {
+            "status": "updated",
+            "service_id": str(service_row.get("service_id", "")).strip(),
+            "name": str(service_row.get("name", "")).strip(),
+            "price": new_price,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
 
 
 
