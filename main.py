@@ -83,6 +83,19 @@ class AdminChangeFreeTimeRequest(BaseModel):
     new_time: str
 
 
+class AdminCreateBookingRequest(BaseModel):
+    date: str
+    time: str
+    client_name: str
+    service_name: str
+    notes: str | None = ""
+
+
+class AdminAddFreeSlotRequest(BaseModel):
+    date: str
+    time: str
+
+
 def check_admin_key(key: str | None = None):
     expected = ADMIN_KEY.strip()
     if not expected:
@@ -947,6 +960,64 @@ def split_admin_booking_status(status_text: str, details: list[str] | None = Non
 
 
 
+
+def get_or_create_bookings_worksheet(spreadsheet):
+    headers = [
+        "booking_id",
+        "created_at",
+        "client_name",
+        "service_id",
+        "service_name",
+        "date",
+        "time",
+        "notes",
+        "status",
+        "telegram_chat_id",
+        "reminder_requested",
+        "reminder_sent",
+    ]
+
+    try:
+        worksheet = spreadsheet.worksheet("bookings")
+    except Exception:
+        worksheet = spreadsheet.add_worksheet(title="bookings", rows=1000, cols=len(headers))
+        worksheet.update("A1", [headers])
+
+    existing_headers = worksheet.row_values(1)
+    if not existing_headers:
+        worksheet.update("A1", [headers])
+
+    return worksheet
+
+
+def append_admin_created_client_visit(
+    spreadsheet,
+    created_at: str,
+    booking_id: str,
+    client_name: str,
+    service_name: str,
+    date_text: str,
+    time_text: str,
+    price: str,
+    notes: str,
+):
+    clients_ws = get_or_create_clients_worksheet(spreadsheet)
+
+    # This keeps compatibility with the old clients structure.
+    clients_ws.append_row([
+        created_at,
+        booking_id,
+        client_name,
+        service_name,
+        date_text,
+        time_text,
+        price,
+        notes or "",
+        "new",
+    ])
+
+
+
 @app.get("/api/admin/dates")
 def admin_dates(key: str | None = Query(default=None)):
     check_admin_key(key)
@@ -1004,6 +1075,188 @@ def admin_schedule(date: str = Query(...), key: str | None = Query(default=None)
             items.append(payload)
 
         return {'date': normalize_date(date), 'items': items}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+
+def sort_calendar_day_cell(cell_text: str) -> str:
+    lines = str(cell_text or "").splitlines()
+    header_lines = []
+    time_lines = []
+
+    for line in lines:
+        clean = str(line or "").strip()
+        if not clean:
+            continue
+
+        match = TIME_LINE_RE.match(clean)
+
+        if match:
+            time_lines.append(clean)
+        else:
+            header_lines.append(clean)
+
+    time_lines = sorted(
+        time_lines,
+        key=lambda line: normalize_time(TIME_LINE_RE.match(line).group(1))
+    )
+
+    return "\n".join(header_lines + time_lines)
+
+
+
+@app.post("/api/admin/add-free-slot")
+def admin_add_free_slot(request: AdminAddFreeSlotRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        date_text = normalize_date(request.date)
+        time_text = normalize_time(request.time)
+
+        if not time_text:
+            raise HTTPException(status_code=400, detail="Time is required")
+
+        if is_weekend(date_text):
+            raise HTTPException(status_code=409, detail="Weekend dates are not available")
+
+        if is_past_date(date_text) or is_past_or_current_time_for_today(date_text, time_text):
+            raise HTTPException(status_code=409, detail="This time is no longer available")
+
+        worksheet = get_calendar_worksheet_for_date(date_text)
+        row_index, col_index, cell_text = find_calendar_cell_by_date(worksheet, date_text)
+
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail="Date not found in schedule")
+
+        existing_index, existing_status = find_time_in_cell(cell_text, time_text)
+
+        if existing_index is not None:
+            raise HTTPException(status_code=409, detail="This time already exists")
+
+        updated_cell = replace_time_line(cell_text, time_text, "free")
+        updated_cell = sort_calendar_day_cell(updated_cell)
+
+        worksheet.update_cell(row_index, col_index, updated_cell)
+
+        clear_cache()
+
+        return {
+            "status": "created",
+            "date": date_text,
+            "time": time_text,
+            "slot_status": "free",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=readable_error(exc))
+
+
+@app.post("/api/admin/create-booking")
+def admin_create_booking(request: AdminCreateBookingRequest, key: str | None = Query(default=None)):
+    check_admin_key(key)
+
+    try:
+        date_text = normalize_date(request.date)
+        time_text = normalize_time(request.time)
+        client_name = str(request.client_name or "").strip()
+        service_name = str(request.service_name or "").strip()
+        notes = str(request.notes or "").strip()
+
+        if not client_name:
+            raise HTTPException(status_code=400, detail="Client name is required")
+
+        if not service_name:
+            raise HTTPException(status_code=400, detail="Service name is required")
+
+        if is_weekend(date_text):
+            raise HTTPException(status_code=409, detail="Weekend dates are not available")
+
+        if is_past_date(date_text) or is_past_or_current_time_for_today(date_text, time_text):
+            raise HTTPException(status_code=409, detail="This time is no longer available")
+
+        spreadsheet = get_spreadsheet()
+        bookings_ws = get_or_create_bookings_worksheet(spreadsheet)
+        calendar_ws = get_calendar_worksheet_for_date(date_text)
+
+        row_index, col_index, cell_text = find_calendar_cell_by_date(calendar_ws, date_text)
+
+        if not row_index or not col_index:
+            raise HTTPException(status_code=404, detail="Date not found in schedule")
+
+        time_line_index, current_status = find_time_in_cell(cell_text, time_text)
+
+        if time_line_index is None:
+            raise HTTPException(status_code=404, detail="Time not found in schedule")
+
+        if not is_time_free(current_status):
+            raise HTTPException(status_code=409, detail="This time is not free")
+
+        service_prices = get_service_prices_for_admin()
+        price = find_admin_price_for_service(service_name, service_prices)
+
+        booking_id = "AD-" + uuid.uuid4().hex[:8].upper()
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        booked_text = f"{client_name} — {service_name}"
+        if price:
+            booked_text += f" — {price} €"
+
+        new_cell_text = replace_time_line(cell_text, time_text, booked_text)
+        calendar_ws.update_cell(row_index, col_index, new_cell_text)
+
+        bookings_ws.append_row([
+            booking_id,
+            created_at,
+            client_name,
+            "",
+            service_name,
+            date_text,
+            time_text,
+            notes,
+            "new",
+            "",
+            "no",
+            "no",
+        ])
+
+        append_admin_created_client_visit(
+            spreadsheet=spreadsheet,
+            created_at=created_at,
+            booking_id=booking_id,
+            client_name=client_name,
+            service_name=service_name,
+            date_text=date_text,
+            time_text=time_text,
+            price=price,
+            notes=notes,
+        )
+
+        clear_cache()
+
+        send_master_notification(
+            "Запись добавлена админом\n\n"
+            f"Клиент: {client_name}\n"
+            f"Услуга: {service_name}\n"
+            f"Дата: {date_text}\n"
+            f"Время: {time_text}\n"
+            f"Номер записи: {booking_id}"
+        )
+
+        return {
+            "status": "created",
+            "booking_id": booking_id,
+            "client_name": client_name,
+            "service_name": service_name,
+            "date": date_text,
+            "time": time_text,
+            "price": price,
+        }
+
     except HTTPException:
         raise
     except Exception as exc:
