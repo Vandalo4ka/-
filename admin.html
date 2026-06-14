@@ -11,7 +11,7 @@
     }
     *{box-sizing:border-box}
     body{margin:0;background:var(--cream);font-family:Arial,Helvetica,sans-serif;color:var(--text);padding:18px}
-    .app{max-width:860px;margin:0 auto}
+    .app{max-width:1280px;margin:0 auto}
     .header{background:var(--green);color:#fff;border-radius:24px;padding:22px 20px;margin-bottom:18px}
     .header h1{margin:0;font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:34px}
     .header p{margin:8px 0 0;font-size:15px;opacity:.92}
@@ -26,7 +26,20 @@
     button{font-family:inherit}
     .btn{border:none;border-radius:14px;padding:12px 14px;font-size:15px;font-weight:700;cursor:pointer}
     .btn-primary{background:var(--peach);color:#fff}.btn-secondary{background:#efe8df;color:#5b4339}.btn-outline{background:#fff;border:1px solid var(--line);color:#5b4339}
-    .slots{display:grid;gap:10px}.day-sheet{border:1px solid var(--line);border-radius:22px;background:#fff;padding:18px;margin-top:12px}.day-title{font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#5b4339;margin:0 0 14px}.day-subtitle{color:var(--muted);font-size:14px;margin-top:-8px;margin-bottom:16px}.slot-list{display:grid;gap:10px}
+    .slots{display:grid;gap:10px}
+    .week-board{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+    .week-day-card{border:1px solid var(--line);border-radius:18px;background:#fff;padding:10px;min-width:0}
+    .week-day-title{font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#5b4339;margin:0}
+    .week-day-subtitle{font-size:12px;color:var(--muted);margin:2px 0 10px}
+    .week-slot{border:1px solid var(--line);border-radius:14px;padding:9px;margin-bottom:8px;font-size:12px;line-height:1.3}
+    .week-slot.free{background:var(--free)} .week-slot.blocked{background:var(--blocked)} .week-slot.booked{background:var(--booked)}
+    .week-slot-time{font-size:17px;font-weight:700;color:#5b4339;margin-bottom:5px}
+    .week-slot-client{font-weight:700;color:#5b4339}
+    .week-slot-service{margin-top:3px;color:#5a514d}
+    .week-slot-price{margin-top:3px;font-weight:700;color:#5b4339}
+    .week-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+    .week-actions .btn{font-size:11px;padding:8px 9px;border-radius:10px}
+    .day-sheet{border:1px solid var(--line);border-radius:22px;background:#fff;padding:18px;margin-top:12px}.day-title{font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#5b4339;margin:0 0 14px}.day-subtitle{color:var(--muted);font-size:14px;margin-top:-8px;margin-bottom:16px}.slot-list{display:grid;gap:10px}
     .slot{border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:86px 1fr auto;gap:12px;align-items:center}
     .slot.free{background:var(--free)} .slot.blocked{background:var(--blocked)} .slot.booked{background:var(--booked)}
     .slot-top{display:block}
@@ -38,7 +51,7 @@
     .hidden{display:none}.muted{color:var(--muted)}.error{color:#b95f5f;margin-bottom:12px;line-height:1.45}
     .empty{padding:18px;border:1px dashed var(--line);border-radius:16px;color:var(--muted)}
     .move-panel{padding:14px 16px;border:1px solid var(--peach);border-radius:16px;background:#fff7f2;margin:12px 0 16px;line-height:1.5}
-    .move-panel b{color:#5b4339}.service-price-row{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.service-price-row:last-child{border-bottom:none}.service-price-name{font-weight:700;color:#5b4339}.price-input,.service-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:15px;background:#fff}.services-add-box{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto;gap:10px;align-items:center;margin:14px 0;padding:12px;border:1px dashed var(--line);border-radius:16px;background:#fff}.small-label{font-size:12px;color:var(--muted);margin-bottom:4px}@media(max-width:640px){.service-price-row,.services-add-box{grid-template-columns:1fr}.service-price-row button,.services-add-box button{width:100%}}
+    .move-panel b{color:#5b4339}.service-price-row{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.service-price-row:last-child{border-bottom:none}.service-price-name{font-weight:700;color:#5b4339}.price-input,.service-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:15px;background:#fff}.services-add-box{display:grid;grid-template-columns:1.5fr 80px 80px 1.4fr auto;gap:10px;align-items:center;margin:14px 0;padding:12px;border:1px dashed var(--line);border-radius:16px;background:#fff}.small-label{font-size:12px;color:var(--muted);margin-bottom:4px}@media(max-width:640px){.service-price-row,.services-add-box{grid-template-columns:1fr}.service-price-row button,.services-add-box button{width:100%}.week-board{grid-template-columns:repeat(5,minmax(190px,1fr));overflow-x:auto}.week-day-card{min-width:190px}}
     @media (max-width:640px){ .header h1{font-size:28px}.date-list{grid-template-columns:repeat(5,minmax(86px,1fr));overflow-x:auto}.date-btn{min-width:86px}.card{padding:14px}.slot{grid-template-columns:1fr;align-items:start}.actions{justify-content:flex-start}.time{font-size:24px} }
   </style>
 </head>
@@ -215,118 +228,152 @@ function renderDates(){
 
 async function loadSchedule(){
   clearError();
-  if(!state.selectedDate){ slotsWrap.innerHTML = '<div class="empty">Нет доступных дат.</div>'; return; }
-  selectedDateTitle.textContent = prettyDate(state.selectedDate);
-  slotsWrap.innerHTML = '<div class="empty">Загрузка...</div>';
+
+  const dates = weekDates();
+  selectedDateTitle.textContent = 'Неделя: ' + monthDay(dates[0]) + ' — ' + monthDay(dates[4]);
+  slotsWrap.innerHTML = '<div class="empty">Загрузка недели...</div>';
+
   try {
-    const data = await api('/api/admin/schedule?date=' + encodeURIComponent(state.selectedDate));
-    if(!data.items.length){ slotsWrap.innerHTML = '<div class="empty">На эту дату слотов нет.</div>'; return; }
+    const schedules = await Promise.all(
+      dates.map(date =>
+        api('/api/admin/schedule?date=' + encodeURIComponent(date))
+          .then(data => ({date, items: data.items || []}))
+          .catch(error => ({date, items: [], error: error.message}))
+      )
+    );
 
-    const dayNumberText = dayNum(state.selectedDate);
-    const dayNameText = dayLabel(state.selectedDate);
-    const fullDateText = prettyDate(state.selectedDate);
-
-    const rows = data.items.map(item => {
-      let statusBadge = '';
-      let detail = '';
-      let actions = '';
-
-      if(item.type === 'free'){
-        statusBadge = '<span class="badge free">свободно</span>';
-        detail = `
-          <div class="record-line"><b>Свободно</b></div>
-          <div class="service-line">Можно записать клиента</div>
-        `;
-        if(state.movingBooking){
-          actions = `
-            <button class="btn btn-primary moveHereBtn" data-date="${item.date}" data-time="${item.time}">
-              Перенести сюда
-            </button>
-            <button class="btn btn-primary createBookingBtn" data-time="${item.time}">Записать клиента</button>
-            <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
-            <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
-          `;
-        } else {
-          actions = `
-            <button class="btn btn-primary createBookingBtn" data-time="${item.time}">Записать клиента</button>
-            <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
-            <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
-          `;
-        }
-      } else if(item.type === 'blocked'){
-        statusBadge = '<span class="badge blocked">закрыто</span>';
-        detail = `
-          <div class="record-line"><b>Закрыто</b></div>
-          <div class="service-line">Клиенты не видят это время</div>
-        `;
-        actions = `<button class="btn btn-outline actionBtn" data-action="unblock" data-time="${item.time}">Открыть</button>`;
-      } else {
-        statusBadge = '<span class="badge booked">запись</span>';
-        detail = `
-          <div class="record-line"><b>${item.client_name || 'Клиент'}</b></div>
-          <div class="service-line">${item.service_name || 'Услуга не указана'}</div>
-          ${item.price ? `<div class="price-line">${item.price}</div>` : ''}
-          ${item.notes ? `<div class="service-line">Комментарий: ${item.notes}</div>` : ''}
-        `;
-        actions = `
-          <button class="btn btn-outline selectMoveBtn"
-            data-booking-id="${item.booking_id || ''}"
-            data-date="${item.date}"
-            data-time="${item.time}"
-            data-client="${item.client_name || ''}"
-            data-service="${item.service_name || ''}">
-            Изменить дату/время
-          </button>
-          <button class="btn btn-primary actionBtn" data-action="cancel" data-time="${item.time}">Отменить</button>
-        `;
-      }
+    const board = schedules.map(day => {
+      const itemsHtml = day.items.length ? day.items.map(item => renderWeekSlot(day.date, item)).join('') : '<div class="empty">Нет слотов</div>';
 
       return `
-        <div class="slot ${item.type}">
-          <div class="slot-top">
-            <div class="time">${item.time}</div>
-            ${statusBadge}
-          </div>
-          <div class="meta">${detail}</div>
-          <div class="actions">${actions}</div>
+        <div class="week-day-card ${state.selectedDate===day.date ? 'active' : ''}" data-date="${day.date}">
+          <h2 class="week-day-title">${dayNum(day.date)}</h2>
+          <div class="week-day-subtitle">${dayLabel(day.date)}, ${prettyDate(day.date)}</div>
+          ${itemsHtml}
         </div>
       `;
     }).join('');
 
-    slotsWrap.innerHTML = `
-      <div class="day-sheet">
-        <h2 class="day-title">${dayNumberText}</h2>
-        <div class="day-subtitle">${dayNameText}, ${fullDateText}</div>
-        <div class="slot-list">${rows}</div>
-      </div>
+    slotsWrap.innerHTML = `<div class="week-board">${board}</div>`;
+
+    bindScheduleButtons();
+    renderMovePanel();
+  } catch(e){
+    showError(e.message);
+    slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить неделю.</div>';
+  }
+}
+
+function renderWeekSlot(date, item){
+  let badge = '';
+  let detail = '';
+  let actions = '';
+
+  if(item.type === 'free'){
+    badge = '<span class="badge free">свободно</span>';
+    detail = `
+      <div class="week-slot-client">Свободно</div>
+      <div class="week-slot-service">Можно записать клиента</div>
     `;
 
-    document.querySelectorAll('.actionBtn').forEach(btn => btn.onclick = () => runAction(btn.dataset.action, btn.dataset.time));
+    if(state.movingBooking){
+      actions = `
+        <button class="btn btn-primary moveHereBtn" data-date="${date}" data-time="${item.time}">Сюда</button>
+        <button class="btn btn-primary createBookingBtn" data-date="${date}" data-time="${item.time}">Записать</button>
+        <button class="btn btn-outline changeTimeBtn" data-date="${date}" data-time="${item.time}">Время</button>
+        <button class="btn btn-secondary actionBtn" data-date="${date}" data-action="block" data-time="${item.time}">Закрыть</button>
+      `;
+    } else {
+      actions = `
+        <button class="btn btn-primary createBookingBtn" data-date="${date}" data-time="${item.time}">Записать</button>
+        <button class="btn btn-outline changeTimeBtn" data-date="${date}" data-time="${item.time}">Время</button>
+        <button class="btn btn-secondary actionBtn" data-date="${date}" data-action="block" data-time="${item.time}">Закрыть</button>
+      `;
+    }
+  } else if(item.type === 'blocked'){
+    badge = '<span class="badge blocked">закрыто</span>';
+    detail = `
+      <div class="week-slot-client">Закрыто</div>
+      <div class="week-slot-service">Клиенты не видят это время</div>
+    `;
+    actions = `<button class="btn btn-outline actionBtn" data-date="${date}" data-action="unblock" data-time="${item.time}">Открыть</button>`;
+  } else {
+    badge = '<span class="badge booked">запись</span>';
+    detail = `
+      <div class="week-slot-client">${item.client_name || 'Клиент'}</div>
+      <div class="week-slot-service">${item.service_name || 'Услуга не указана'}</div>
+      ${item.price ? `<div class="week-slot-price">${item.price}</div>` : ''}
+      ${item.notes ? `<div class="week-slot-service">Комм.: ${item.notes}</div>` : ''}
+    `;
+    actions = `
+      <button class="btn btn-outline selectMoveBtn"
+        data-booking-id="${item.booking_id || ''}"
+        data-date="${date}"
+        data-time="${item.time}"
+        data-client="${item.client_name || ''}"
+        data-service="${item.service_name || ''}">
+        Перенести
+      </button>
+      <button class="btn btn-primary actionBtn" data-date="${date}" data-action="cancel" data-time="${item.time}">Отменить</button>
+    `;
+  }
 
-    document.querySelectorAll('.selectMoveBtn').forEach(btn => {
-      btn.onclick = () => startMoveBooking({
+  return `
+    <div class="week-slot ${item.type}">
+      <div class="week-slot-time">${item.time}</div>
+      ${badge}
+      ${detail}
+      <div class="week-actions">${actions}</div>
+    </div>
+  `;
+}
+
+function bindScheduleButtons(){
+  document.querySelectorAll('.actionBtn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date || state.selectedDate;
+      renderDates();
+      runAction(btn.dataset.action, btn.dataset.time);
+    };
+  });
+
+  document.querySelectorAll('.selectMoveBtn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date || state.selectedDate;
+      renderDates();
+      startMoveBooking({
         bookingId: btn.dataset.bookingId,
         date: btn.dataset.date,
         time: btn.dataset.time,
         client: btn.dataset.client,
         service: btn.dataset.service
       });
-    });
+    };
+  });
 
-    document.querySelectorAll('.moveHereBtn').forEach(btn => {
-      btn.onclick = () => moveBookingHere(btn.dataset.date, btn.dataset.time);
-    });
+  document.querySelectorAll('.moveHereBtn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date || state.selectedDate;
+      renderDates();
+      moveBookingHere(btn.dataset.date, btn.dataset.time);
+    };
+  });
 
-    document.querySelectorAll('.changeTimeBtn').forEach(btn => {
-      btn.onclick = () => changeFreeSlotTime(btn.dataset.time);
-    });
+  document.querySelectorAll('.changeTimeBtn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date || state.selectedDate;
+      renderDates();
+      changeFreeSlotTime(btn.dataset.time);
+    };
+  });
 
-    document.querySelectorAll('.createBookingBtn').forEach(btn => {
-      btn.onclick = () => createBookingInFreeSlot(btn.dataset.time);
-    });
-
-    renderMovePanel();
-  } catch(e){ showError(e.message); slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить расписание.</div>'; }
+  document.querySelectorAll('.createBookingBtn').forEach(btn => {
+    btn.onclick = () => {
+      state.selectedDate = btn.dataset.date || state.selectedDate;
+      renderDates();
+      createBookingInFreeSlot(btn.dataset.time);
+    };
+  });
 }
 
 async function toggleServicesPanel(){
