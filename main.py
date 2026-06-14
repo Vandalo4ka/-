@@ -72,7 +72,9 @@ class AdminDayUpdateRequest(BaseModel):
 
 
 class AdminMoveBookingRequest(BaseModel):
-    booking_id: str
+    booking_id: str | None = ""
+    old_date: str | None = ""
+    old_time: str | None = ""
     new_date: str
     new_time: str
 
@@ -1699,12 +1701,11 @@ def admin_move_booking(request: AdminMoveBookingRequest, key: str | None = Query
     check_admin_key(key)
 
     try:
-        booking_id = str(request.booking_id).strip()
+        booking_id = str(request.booking_id or "").strip()
         new_date = normalize_date(request.new_date)
         new_time = normalize_time(request.new_time)
-
-        if not booking_id:
-            raise HTTPException(status_code=400, detail="Booking ID is required")
+        old_date_from_request = normalize_date(str(request.old_date or ""))
+        old_time_from_request = normalize_time(str(request.old_time or ""))
 
         if is_weekend(new_date):
             raise HTTPException(status_code=409, detail="Weekend dates are not available")
@@ -1713,18 +1714,31 @@ def admin_move_booking(request: AdminMoveBookingRequest, key: str | None = Query
             raise HTTPException(status_code=409, detail="This time is no longer available")
 
         spreadsheet = get_spreadsheet()
-        bookings_ws = spreadsheet.worksheet("bookings")
-        row_number, booking = find_booking_by_id(bookings_ws, booking_id)
+        bookings_ws = get_or_create_bookings_worksheet(spreadsheet)
 
-        if not row_number:
-            raise HTTPException(status_code=404, detail="Booking not found")
+        row_number = None
+        booking = None
 
-        current_status = str(booking.get("status", "")).strip().casefold()
-        if current_status in ["cancelled", "canceled", "отменено"]:
-            raise HTTPException(status_code=409, detail="This booking is already cancelled")
+        if booking_id:
+            row_number, booking = find_booking_by_id(bookings_ws, booking_id)
 
-        old_date = normalize_date(str(booking.get("date", "")))
-        old_time = normalize_time(str(booking.get("time", "")))
+        # Fallback: imported/manual calendar entries may not exist in bookings.
+        if not booking and old_date_from_request and old_time_from_request:
+            row_number, booking = find_active_booking_by_date_time(bookings_ws, old_date_from_request, old_time_from_request)
+
+        old_date = old_date_from_request
+        old_time = old_time_from_request
+
+        if booking:
+            current_status = str(booking.get("status", "")).strip().casefold()
+            if current_status in ["cancelled", "canceled", "отменено"]:
+                raise HTTPException(status_code=409, detail="This booking is already cancelled")
+
+            old_date = normalize_date(str(booking.get("date", "")))
+            old_time = normalize_time(str(booking.get("time", "")))
+
+        if not old_date or not old_time:
+            raise HTTPException(status_code=400, detail="Old date and old time are required")
 
         if old_date == new_date and old_time == new_time:
             return {
@@ -1749,49 +1763,78 @@ def admin_move_booking(request: AdminMoveBookingRequest, key: str | None = Query
         if not is_time_free(new_current_status):
             raise HTTPException(status_code=409, detail="New time is not free")
 
-        client_name = str(booking.get("client_name", "")).strip()
-        service_name = str(booking.get("service_name", "")).strip()
+        # Read old calendar text to get client/service if there is no booking row.
+        old_calendar_ws = get_calendar_worksheet_for_date(old_date)
+        old_row_index, old_col_index, old_cell_text = find_calendar_cell_by_date(old_calendar_ws, old_date)
 
-        # Price may not be stored in bookings, so try to get it from clients first.
-        price = ""
-        try:
-            clients_ws = get_or_create_clients_worksheet(spreadsheet)
-            for client_row in clients_ws.get_all_records():
-                if str(client_row.get("booking_id", "")).strip() == booking_id:
-                    price = normalize_price(client_row.get("price", ""))
-                    break
-        except Exception:
-            price = ""
+        if not old_row_index or not old_col_index:
+            raise HTTPException(status_code=404, detail="Old date not found in schedule")
 
-        booked_text = f"{client_name} — {service_name}"
+        old_time_line_index, old_status = find_time_in_cell(old_cell_text, old_time)
+
+        if old_time_line_index is None:
+            raise HTTPException(status_code=404, detail="Old time not found in schedule")
+
+        if status_type_from_text(old_status) != "booked":
+            raise HTTPException(status_code=409, detail="Old time is not a booking")
+
+        # Try to parse service lines from the old calendar cell.
+        old_items = parse_admin_calendar_day_items(old_cell_text)
+        old_item = next((item for item in old_items if normalize_time(item.get("time", "")) == old_time), None)
+        preview = split_admin_booking_status(old_status, old_item.get("details") if old_item else [])
+
+        client_name = preview.get("client_name", "")
+        service_name = preview.get("service_name", "")
+        price = preview.get("price", "")
+
+        if booking:
+            booking_client = str(booking.get("client_name", "")).strip()
+            booking_service = str(booking.get("service_name", "")).strip()
+            if booking_client:
+                client_name = booking_client
+            if booking_service:
+                service_name = booking_service
+
+        if not price and service_name:
+            found_price = find_admin_price_for_service(service_name, get_service_prices_for_admin())
+            if found_price:
+                price = f"{found_price} €"
+
+        booked_text = f"{client_name} — {service_name}".strip(" —")
         if price:
-            booked_text += f" — {price} €"
+            booked_text += f" — {price}"
 
         # Free old calendar slot.
-        try:
-            old_calendar_ws = get_calendar_worksheet_for_date(old_date)
-            old_row_index, old_col_index, old_cell_text = find_calendar_cell_by_date(old_calendar_ws, old_date)
-            if old_row_index and old_col_index:
-                old_updated_cell = replace_time_line(old_cell_text, old_time, "free")
-                old_calendar_ws.update_cell(old_row_index, old_col_index, old_updated_cell)
-        except Exception:
-            pass
+        old_updated_cell = replace_time_line(old_cell_text, old_time, "free")
+        old_calendar_ws.update_cell(old_row_index, old_col_index, old_updated_cell)
 
         # Book new calendar slot.
         new_updated_cell = replace_time_line(new_cell_text, new_time, booked_text)
         new_calendar_ws.update_cell(new_row_index, new_col_index, new_updated_cell)
 
-        # Update bookings.
-        update_columns_by_header(bookings_ws, row_number, {
-            "date": new_date,
-            "time": new_time,
-        })
+        # Update bookings if a row exists.
+        if row_number and booking:
+            update_columns_by_header(bookings_ws, row_number, {
+                "date": new_date,
+                "time": new_time,
+            })
 
-        # Update clients sheet.
+        # Update clients sheet if booking_id exists; otherwise try matching old date/time/client.
         try:
             clients_ws = get_or_create_clients_worksheet(spreadsheet)
             for client_row_number, client_row in enumerate(clients_ws.get_all_records(), start=2):
-                if str(client_row.get("booking_id", "")).strip() == booking_id:
+                same_record = False
+
+                if booking_id and str(client_row.get("booking_id", "")).strip() == booking_id:
+                    same_record = True
+                else:
+                    same_record = (
+                        normalize_date(str(client_row.get("date", ""))) == old_date
+                        and normalize_time(str(client_row.get("time", ""))) == old_time
+                        and str(client_row.get("client_name", "")).strip().casefold() == client_name.casefold()
+                    )
+
+                if same_record:
                     update_columns_by_header(clients_ws, client_row_number, {
                         "date": new_date,
                         "time": new_time,
@@ -1803,22 +1846,24 @@ def admin_move_booking(request: AdminMoveBookingRequest, key: str | None = Query
         clear_cache()
 
         message = (
-            "Запись перенесена\\n\\n"
-            f"Клиент: {client_name}\\n"
-            f"Услуга: {service_name}\\n"
-            f"Было: {old_date}, {old_time}\\n"
-            f"Стало: {new_date}, {new_time}\\n"
-            f"Номер записи: {booking_id}"
+            "Запись перенесена\n\n"
+            f"Клиент: {client_name}\n"
+            f"Услуга: {service_name}\n"
+            f"Было: {old_date}, {old_time}\n"
+            f"Стало: {new_date}, {new_time}\n"
         )
+        if booking_id:
+            message += f"Номер записи: {booking_id}"
+
         send_master_notification(message)
 
-        client_chat_id = str(booking.get("telegram_chat_id", "")).strip()
+        client_chat_id = str(booking.get("telegram_chat_id", "")).strip() if booking else ""
         if client_chat_id:
             send_telegram_message(
                 client_chat_id,
-                "Ваша запись перенесена.\\n\\n"
-                f"Услуга: {service_name}\\n"
-                f"Новая дата: {new_date}\\n"
+                "Ваша запись перенесена.\n\n"
+                f"Услуга: {service_name}\n"
+                f"Новая дата: {new_date}\n"
                 f"Новое время: {new_time}"
             )
 
