@@ -760,6 +760,114 @@ async def telegram_webhook(request: Request):
 
 
 
+
+def normalize_service_name_for_price(value: str) -> str:
+    return (
+        str(value or "")
+        .lower()
+        .replace("ё", "е")
+        .replace("+", " ")
+        .replace("/", " ")
+        .replace("\\", " ")
+        .replace(".", " ")
+        .replace(",", " ")
+        .replace(";", " ")
+        .replace(":", " ")
+        .replace("(", " ")
+        .replace(")", " ")
+        .strip()
+    )
+
+
+def normalize_admin_price(value):
+    if value is None:
+        return ""
+
+    raw = str(value).strip().replace("€", "").replace(" ", "")
+    if raw == "":
+        return ""
+
+    normalized = raw.replace(",", ".")
+
+    try:
+        number = float(normalized)
+
+        if number >= 100 and number % 100 == 0:
+            number = number / 100
+
+        return str(int(number)) if number.is_integer() else str(number).rstrip("0").rstrip(".")
+    except Exception:
+        return raw
+
+
+def get_service_prices_for_admin():
+    try:
+        spreadsheet = get_spreadsheet()
+        services_ws = spreadsheet.worksheet("services")
+        rows = services_ws.get_all_records()
+    except Exception:
+        return []
+
+    services = []
+
+    for row in rows:
+        is_active = str(row.get("is_active", "")).strip().casefold()
+        if is_active and is_active not in ["true", "1", "yes", "да"]:
+            continue
+
+        name = str(row.get("name", "")).strip()
+        if not name:
+            continue
+
+        services.append({
+            "name": name,
+            "normalized_name": normalize_service_name_for_price(name),
+            "price": normalize_admin_price(row.get("price", "")),
+        })
+
+    return services
+
+
+def find_admin_price_for_service(service_name: str, service_prices: list[dict]) -> str:
+    normalized = normalize_service_name_for_price(service_name)
+    normalized = " ".join(normalized.split())
+
+    if not normalized:
+        return ""
+
+    for item in service_prices:
+        if item.get("normalized_name") == normalized:
+            return item.get("price", "")
+
+    aliases = [
+        (["маникюр педикюр", "маникюр/педикюр", "маникюр и педикюр"], ["полный педикюр"]),
+        (["педикюр"], ["гигиенический педикюр"]),
+        (["ресницы брови", "ресницы/брови"], ["ламинирование ресниц"]),
+        (["ресницы"], ["ламинирование ресниц"]),
+        (["брови"], ["окрашивание и коррекция бровей"]),
+        (["ногти", "наращивание"], ["наращивание ногтей"]),
+        (["маникюр"], ["гигиенический маникюр"]),
+    ]
+
+    for keywords, service_needles in aliases:
+        if not any(normalize_service_name_for_price(keyword) in normalized for keyword in keywords):
+            continue
+
+        for service_needle in service_needles:
+            needle = normalize_service_name_for_price(service_needle)
+            for item in service_prices:
+                if needle in item.get("normalized_name", ""):
+                    return item.get("price", "")
+
+    for item in service_prices:
+        item_name = item.get("normalized_name", "")
+        if item_name and (item_name in normalized or normalized in item_name):
+            return item.get("price", "")
+
+    return ""
+
+
+
 def parse_admin_calendar_day_items(cell_text: str):
     """
     Parses day cell lines such as:
@@ -857,6 +965,7 @@ def admin_schedule(date: str = Query(...), key: str | None = Query(default=None)
         parsed_items = parse_admin_calendar_day_items(cell_text)
         spreadsheet = get_spreadsheet()
         bookings_ws = spreadsheet.worksheet('bookings')
+        service_prices = get_service_prices_for_admin()
         items = []
 
         for item in sorted(parsed_items, key=lambda x: normalize_time(x["time"])):
@@ -886,6 +995,11 @@ def admin_schedule(date: str = Query(...), key: str | None = Query(default=None)
                         'notes': str(booking.get('notes', '')).strip(),
                         'status': str(booking.get('status', '')).strip(),
                     })
+
+                if not payload.get('price') and payload.get('service_name'):
+                    found_price = find_admin_price_for_service(payload.get('service_name', ''), service_prices)
+                    if found_price:
+                        payload['price'] = found_price + ' €'
 
             items.append(payload)
 
