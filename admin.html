@@ -69,6 +69,7 @@
     <div class="date-list" id="dateList"></div>
 
     <div class="toolbar">
+      <button class="btn btn-primary" id="addSlotBtn">Добавить свободное время</button>
       <button class="btn btn-secondary" id="closeDayBtn">Закрыть весь день</button>
       <button class="btn btn-outline" id="openDayBtn">Открыть весь день</button>
     </div>
@@ -94,6 +95,7 @@ const prevWeekBtn = document.getElementById('prevWeekBtn');
 const nextWeekBtn = document.getElementById('nextWeekBtn');
 
 document.getElementById('reloadBtn').onclick = () => loadSchedule();
+document.getElementById('addSlotBtn').onclick = () => addFreeSlot();
 document.getElementById('closeDayBtn').onclick = () => updateDay('close-day');
 document.getElementById('openDayBtn').onclick = () => updateDay('open-day');
 prevWeekBtn.onclick = () => shiftWeek(-7);
@@ -236,11 +238,13 @@ async function loadSchedule(){
             <button class="btn btn-primary moveHereBtn" data-date="${item.date}" data-time="${item.time}">
               Перенести сюда
             </button>
+            <button class="btn btn-primary createBookingBtn" data-time="${item.time}">Записать клиента</button>
             <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
             <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
           `;
         } else {
           actions = `
+            <button class="btn btn-primary createBookingBtn" data-time="${item.time}">Записать клиента</button>
             <button class="btn btn-outline changeTimeBtn" data-time="${item.time}">Изменить время</button>
             <button class="btn btn-secondary actionBtn" data-action="block" data-time="${item.time}">Закрыть</button>
           `;
@@ -313,8 +317,75 @@ async function loadSchedule(){
       btn.onclick = () => changeFreeSlotTime(btn.dataset.time);
     });
 
+    document.querySelectorAll('.createBookingBtn').forEach(btn => {
+      btn.onclick = () => createBookingInFreeSlot(btn.dataset.time);
+    });
+
     renderMovePanel();
   } catch(e){ showError(e.message); slotsWrap.innerHTML = '<div class="empty">Не удалось загрузить расписание.</div>'; }
+}
+
+async function addFreeSlot(){
+  clearError();
+
+  if(!state.selectedDate){
+    showError('Сначала выберите дату.');
+    return;
+  }
+
+  const time = prompt('Введите новое свободное время в формате HH:MM, например 14:00:');
+  if(!time || !time.trim()) return;
+
+  if(!confirm('Добавить свободное время ' + time.trim() + ' на ' + state.selectedDate + '?')) return;
+
+  try {
+    await api('/api/admin/add-free-slot', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        date: state.selectedDate,
+        time: time.trim()
+      })
+    });
+
+    await loadDates();
+    loadSchedule();
+  } catch(e){
+    showError('Не удалось добавить свободное время. ' + e.message);
+  }
+}
+
+async function createBookingInFreeSlot(time){
+  clearError();
+
+  const clientName = prompt('Имя клиента:');
+  if(!clientName || !clientName.trim()) return;
+
+  const serviceName = prompt('Услуга, например: маникюр / педикюр / ресницы:', '');
+  if(!serviceName || !serviceName.trim()) return;
+
+  const notes = prompt('Комментарий, если нужен:', '') || '';
+
+  if(!confirm('Записать клиента ' + clientName.trim() + ' на ' + state.selectedDate + ' в ' + time + '?')) return;
+
+  try {
+    await api('/api/admin/create-booking', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        date: state.selectedDate,
+        time: time,
+        client_name: clientName.trim(),
+        service_name: serviceName.trim(),
+        notes: notes.trim()
+      })
+    });
+
+    await loadDates();
+    loadSchedule();
+  } catch(e){
+    showError('Не удалось записать клиента. ' + e.message);
+  }
 }
 
 async function changeFreeSlotTime(oldTime){
